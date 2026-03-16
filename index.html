@@ -637,7 +637,11 @@ function phcv(t){ return '<span style="background:#fff3b0;padding:0 2px">'+t+'</
 function updateCvPreview(){
   var lugar=gcv('cv-lugar'), juzgado=gcv('cv-juzgado');
   var hora=gcv('cv-hora')||'...............';
-  var fd=parseFechaCv(document.getElementById('cv-fecha').value);
+  var mesNombres=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var fechaStr='';
+  var cvFecha=document.getElementById('cv-fecha').value;
+  if(cvFecha){var p=cvFecha.split('-');fechaStr=parseInt(p[2])+' de '+mesNombres[parseInt(p[1])-1]+' de '+p[0];}
+
   var vN=gcv('cv-v-nombre'),vD=gcv('cv-v-dni').toUpperCase();
   var vC=gcv('cv-v-ciudad'),vCa=gcv('cv-v-calle');
   var cN=gcv('cv-c-nombre'),cD=gcv('cv-c-dni').toUpperCase();
@@ -645,42 +649,70 @@ function updateCvPreview(){
   var mat=gcv('cv-matricula').toUpperCase(), marca=gcv('cv-marca');
   var modelo=gcv('cv-modelo'), bastidor=gcv('cv-bastidor').toUpperCase();
   var km=gcv('cv-km'), precio=gcv('cv-precio');
-  function V(v,fb){ return v?'<strong>'+v+'</strong>':phcv(fb); }
-  var o='';
-  o+='<h2 style="font-size:19px;font-weight:400;line-height:1.2;margin:0 0 16px">Contrato de compraventa de un veh\u00edculo usado entre particulares</h2>';
-  o+='<p style="margin:0 0 12px"><strong>En </strong>'+V(lugar,'ciudad')+' <strong>a</strong> <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong>&nbsp;&nbsp;<strong>HORA:</strong> '+hora+'</p>';
-  o+='<p style="margin:0 0 4px"><strong>Vendedor:</strong></p>';
-  o+='<p style="margin:0 0 12px">'+V(vN,'nombre vendedor')+', con N.I.F. n\u00ba '+V(vD,'NIF')+', y domicilio en '+V(vC,'ciudad')+', calle de '+V(vCa,'direcci\u00f3n')+'</p>';
-  o+='<p style="margin:0 0 4px"><strong>Comprador:</strong></p>';
-  o+='<p style="margin:0 0 12px">'+V(cN,'nombre comprador')+', con N.I.F. n\u00ba '+V(cD,'NIF')+', y domicilio en '+V(cC,'ciudad')+', calle de '+V(cCa,'direcci\u00f3n')+'</p>';
-  o+='<p style="margin:0 0 6px"><strong>Veh\u00edculo:</strong></p>';
-  o+='<ul style="margin:0 0 12px;padding-left:20px">';
+
+  function V(v,fb){ return v?'<strong>'+v+'</strong>':'<span style="background:#fff3b0;padding:0 2px">'+fb+'</span>'; }
+
+  // Contenedor con plantilla de fondo
+  var o='<div style="position:absolute;inset:0;">';
+  o+='<img src="'+TEMPLATE_IMG+'" style="width:100%;height:100%;object-fit:fill;display:block;"/>';
+  o+='</div>';
+
+  // Capa de texto encima (con % para que escale con el contenedor)
+  o+='<div style="position:absolute;top:16%;left:7%;right:7%;bottom:14%;overflow:hidden;">';
+
+  // Título
+  o+='<p style="text-align:center;font-weight:bold;font-size:1.15em;margin:0 0 0.3em">Contrato de Compraventa de Veh\u00edculo</p>';
+  o+='<p style="text-align:center;font-size:0.9em;margin:0 0 0.6em">(Veh\u00edculo usado entre particulares)</p>';
+
+  // Encabezado
+  var enStr='<strong>En </strong>'+V(lugar,'ciudad')+' <strong>a</strong> '+(fechaStr?'<strong>'+fechaStr+'</strong>':'<span style="background:#fff3b0">fecha</span>')+'&nbsp;&nbsp;<strong>HORA:</strong> '+hora;
+  o+='<p style="margin:0 0 0.5em">'+enStr+'</p>';
+
+  // Vendedor
+  o+='<p style="margin:0 0 0.2em"><strong>Vendedor:</strong></p>';
+  o+='<p style="margin:0 0 0.5em;text-align:justify">'+V(vN,'nombre vendedor')+', con N.I.F. n\u00ba '+V(vD,'NIF')+', y domicilio en '+V(vC,'ciudad')+', calle de '+V(vCa,'direcci\u00f3n')+'.</p>';
+
+  // Comprador
+  o+='<p style="margin:0 0 0.2em"><strong>Comprador:</strong></p>';
+  o+='<p style="margin:0 0 0.5em;text-align:justify">'+V(cN,'nombre comprador')+', con N.I.F. n\u00ba '+V(cD,'NIF')+', y domicilio en '+V(cC,'ciudad')+', calle de '+V(cCa,'direcci\u00f3n')+'.</p>';
+
+  // Vehículo
+  o+='<p style="margin:0 0 0.2em"><strong>Veh\u00edculo:</strong></p>';
+  o+='<ul style="margin:0 0 0.5em;padding-left:1.2em">';
   o+='<li><strong>Marca:</strong> '+V(marca+(modelo?' '+modelo:''),'marca modelo')+'</li>';
   o+='<li><strong>Matr\u00edcula:</strong> '+V(mat,'matr\u00edcula')+'</li>';
   o+='<li><strong>N\u00ba de Bastidor:</strong> '+V(bastidor,'bastidor VIN')+'</li>';
-  o+='<li><strong>Kil\u00f3metros:</strong> '+(km?'<strong>'+km+' km</strong>':phcv('km'))+'</li>';
+  o+='<li><strong>Kil\u00f3metros:</strong> '+(km?'<strong>'+km+' km</strong>':'<span style="background:#fff3b0">km</span>')+'</li>';
   o+='</ul>';
-  o+='<p style="margin:0 0 10px;text-align:justify">Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento <strong>CONTRATO DE COMPRAVENTA</strong> del veh\u00edculo autom\u00f3vil que se especifica, en las siguientes:</p>';
-  o+='<p style="margin:0 0 6px"><strong>CONDICIONES</strong></p>';
-  var precioStr=precio?precio+' euros':phcv('precio');
-  var juzStr=juzgado?'<strong>'+juzgado+'</strong>':phcv('juzgado');
+
+  // Intro
+  o+='<p style="margin:0 0 0.5em;text-align:justify">Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento <strong>CONTRATO DE COMPRAVENTA</strong> del veh\u00edculo autom\u00f3vil que se especifica, en las siguientes:</p>';
+
+  // Condiciones
+  o+='<p style="margin:0 0 0.3em"><strong>CONDICIONES</strong></p>';
+  var precioStr=precio?precio+' euros':'<span style="background:#fff3b0">precio</span>';
+  var juzStr=juzgado?'<strong>'+juzgado+'</strong>':'<span style="background:#fff3b0">juzgado</span>';
   var conds=[
     '1. El vendedor vende al comprador el veh\u00edculo de su propiedad anteriormente especificado por la cantidad de '+precioStr+', sin incluir los impuestos correspondientes, que ser\u00e1n a cargo del comprador.',
-    '2. El vendedor declara que no pesa sobre el veh\u00edculo ninguna carga o gravamen ni impuesto, deuda o sanci\u00f3n pendientes de abono en la fecha de la firma de este contrato, comprometiendo se en caso contrario a regularizar la situaci\u00f3n a su exclusivo cargo.',
-    '3. El vendedor se compromete a facilitar los distintos documentos relativos al veh\u00edculo, as\u00ed como a firmar cuantos documentos aparte de \u00e9ste sean necesarios para que el veh\u00edculo quede correctamente inscrito a nombre del comprador en los correspondientes organismos p\u00fablicos, siendo todos los gastos a cargo del comprador.',
-    '4. Una vez realizada la correspondiente transferencia en Tr\u00e1fico, el vendedor entregar\u00e1 materialmente al comprador la posesi\u00f3n del veh\u00edculo, haci\u00e9ndose el comprador cargo de cuantas responsabilidades puedan contraerse por la propiedad del veh\u00edculo y su tenencia y uso a partir de dicho momento de la entrega.',
-    '5. El veh\u00edculo se encuentra al corriente respecto a las obligaciones derivadas de la ITV (Inspecci\u00f3n T\u00e9cnica de Veh\u00edculos).',
-    '6. El vendedor responder\u00e1 por el estado del veh\u00edculo en los t\u00e9rminos establecidos en la legislaci\u00f3n civil aplicable.',
-    '7. Para cualquier litigio que surja entre las partes de la interpretaci\u00f3n o cumplimiento del presente contrato, \u00e9stas, con expresa renuncia al fuero que pudiera corresponderles, se someter\u00e1n a los Juzgados y Tribunales de '+juzStr+'.'
+    '2. El vendedor declara que no pesa sobre el veh\u00edculo ninguna carga o gravamen ni impuesto, deuda o sanci\u00f3n pendientes de abono en la fecha de la firma de este contrato.',
+    '3. El vendedor se compromete a facilitar los distintos documentos relativos al veh\u00edculo para que quede inscrito a nombre del comprador en los correspondientes organismos p\u00fablicos.',
+    '4. Una vez realizada la transferencia en Tr\u00e1fico, el vendedor entregar\u00e1 la posesi\u00f3n del veh\u00edculo al comprador.',
+    '5. El veh\u00edculo se encuentra al corriente respecto a las obligaciones derivadas de la ITV.',
+    '6. El vendedor responder\u00e1 por el estado del veh\u00edculo en los t\u00e9rminos de la legislaci\u00f3n civil aplicable.',
+    '7. Para cualquier litigio, las partes se someter\u00e1n a los Juzgados y Tribunales de '+juzStr+'.'
   ];
-  conds.forEach(function(c){ o+='<p style="margin:0 0 5px;text-align:justify;font-size:9.5px">'+c+'</p>'; });
-  o+='<p style="margin:10px 0 20px;text-align:justify">Y para que as\u00ed conste, firman el presente contrato de compraventa, por triplicado, en la fecha y lugar arriba indicados.</p>';
-  o+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px">';
-  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del vendedor</p><div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(vN,'Nombre vendedor')+'</div></div>';
-  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del comprador</p><div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(cN,'Nombre comprador')+'</div></div>';
+  conds.forEach(function(c){ o+='<p style="margin:0 0 0.25em;text-align:justify;font-size:0.9em">'+c+'</p>'; });
+
+  // Firmas
+  o+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0.6em">';
+  o+='<div><p style="font-weight:bold;margin:0 0 1.4em">Firma del vendedor</p><div style="border-top:1px solid #999;padding-top:3px;font-size:0.85em">'+V(vN,'Nombre vendedor')+'</div></div>';
+  o+='<div><p style="font-weight:bold;margin:0 0 1.4em">Firma del comprador</p><div style="border-top:1px solid #999;padding-top:3px;font-size:0.85em">'+V(cN,'Nombre comprador')+'</div></div>';
   o+='</div>';
+
+  o+='</div>'; // cierra capa texto
   document.getElementById('cv-preview').innerHTML=o;
 }
+
 
 function generarCompraventaPDF(){
   var lugar   = gcv('cv-lugar');
@@ -695,12 +727,10 @@ function generarCompraventaPDF(){
   var vDni    = gcv('cv-v-dni').toUpperCase();
   var vCiudad = gcv('cv-v-ciudad');
   var vCalle  = gcv('cv-v-calle');
-
   var cNombre = gcv('cv-c-nombre');
   var cDni    = gcv('cv-c-dni').toUpperCase();
   var cCiudad = gcv('cv-c-ciudad');
   var cCalle  = gcv('cv-c-calle');
-
   var matricula = gcv('cv-matricula').toUpperCase();
   var marca     = gcv('cv-marca');
   var modelo    = gcv('cv-modelo');
@@ -715,16 +745,30 @@ function generarCompraventaPDF(){
 
   var doc = new window.jspdf.jsPDF({unit:'mm',format:'a4'});
 
-  // ── Plantilla de fondo (igual que Venia) ──────────────────────────────────
-  doc.addImage(TEMPLATE_IMG,'JPEG',0,0,210,297);
-
-  // ── Área de texto: top ~15.5%, laterales 7%, bottom 14% ──────────────────
   var mL=20, mR=20, W=170;
-  var y=48;   // empieza debajo del header de la plantilla
   var sz=10.5, lh=5.8;
+  var maxY=248; // límite antes del footer de la plantilla (~83% de 297mm)
+  var pageCount=1;
 
+  // ── Añade plantilla de fondo en cada página ───────────────────────────────
+  function addTemplateBg(){
+    doc.addImage(TEMPLATE_IMG,'JPEG',0,0,210,297);
+  }
+
+  // ── Salto de página con plantilla ────────────────────────────────────────
+  function checkPage(neededMM){
+    if(y+neededMM > maxY){
+      doc.addPage();
+      pageCount++;
+      addTemplateBg();
+      y=48;
+    }
+  }
+
+  // Primera página con fondo
+  addTemplateBg();
   doc.setTextColor(20,20,20);
-  doc.setFont('helvetica','normal');
+  var y=48;
 
   // ── Título ────────────────────────────────────────────────────────────────
   doc.setFont('helvetica','bold'); doc.setFontSize(14);
@@ -734,33 +778,38 @@ function generarCompraventaPDF(){
   doc.text('(Veh\u00edculo usado entre particulares)', 105, y, {align:'center'});
   y+=9;
 
-  // ── Encabezado: En … a … de … de … HORA: … ───────────────────────────────
+  // ── Encabezado ────────────────────────────────────────────────────────────
   doc.setFont('helvetica','bold'); doc.setFontSize(sz);
-  var enStr='En '+(lugar||'.......................')+' a '+(fechaStr||'.......... de .................. de ..........');
-  var horaStr='   HORA: '+hora;
-  doc.text(enStr+horaStr, mL, y);
-  y+=lh+2;
+  var enStr='En '+(lugar||'.......................')+' a '+(fechaStr||'.......... de .................. de ..........')+'   HORA: '+hora;
+  var enW=doc.splitTextToSize(enStr,W);
+  doc.text(enW,mL,y);
+  y+=enW.length*lh+3;
 
   // ── Vendedor ──────────────────────────────────────────────────────────────
+  checkPage(20);
   doc.setFont('helvetica','bold'); doc.setFontSize(sz);
   doc.text('Vendedor:', mL, y); y+=lh;
   doc.setFont('helvetica','normal');
   var vTxt=vNombre+', con N.I.F. n\u00ba '+vDni+', y domicilio en '+vCiudad+', calle de '+vCalle+'.';
-  var vLines=doc.splitTextToSize(vTxt, W);
-  doc.text(vLines, mL, y, {align:'justify', maxWidth:W});
+  var vLines=doc.splitTextToSize(vTxt,W);
+  checkPage(vLines.length*lh+6);
+  doc.text(vLines,mL,y,{align:'justify',maxWidth:W});
   y+=vLines.length*lh+4;
 
   // ── Comprador ─────────────────────────────────────────────────────────────
-  doc.setFont('helvetica','bold');
+  checkPage(20);
+  doc.setFont('helvetica','bold'); doc.setFontSize(sz);
   doc.text('Comprador:', mL, y); y+=lh;
   doc.setFont('helvetica','normal');
   var cTxt=cNombre+', con N.I.F. n\u00ba '+cDni+', y domicilio en '+cCiudad+', calle de '+cCalle+'.';
-  var cLines=doc.splitTextToSize(cTxt, W);
-  doc.text(cLines, mL, y, {align:'justify', maxWidth:W});
+  var cLines=doc.splitTextToSize(cTxt,W);
+  checkPage(cLines.length*lh+6);
+  doc.text(cLines,mL,y,{align:'justify',maxWidth:W});
   y+=cLines.length*lh+4;
 
   // ── Vehículo ──────────────────────────────────────────────────────────────
-  doc.setFont('helvetica','bold');
+  checkPage(30);
+  doc.setFont('helvetica','bold'); doc.setFontSize(sz);
   doc.text('Veh\u00edculo:', mL, y); y+=lh;
   doc.setFont('helvetica','normal');
   var vehicItems=[
@@ -778,18 +827,18 @@ function generarCompraventaPDF(){
   y+=3;
 
   // ── Párrafo introductorio ─────────────────────────────────────────────────
+  checkPage(15);
   doc.setFont('helvetica','normal'); doc.setFontSize(sz);
-  var intro='Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento ';
-  var introLines=doc.splitTextToSize(intro, W);
-  // última línea necesita el texto bold inline — simplificamos con splitTextToSize completo
   var introFull='Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento CONTRATO DE COMPRAVENTA del veh\u00edculo autom\u00f3vil que se especifica, en las siguientes:';
-  var introW=doc.splitTextToSize(introFull, W);
-  doc.text(introW, mL, y, {align:'justify', maxWidth:W});
+  var introW=doc.splitTextToSize(introFull,W);
+  doc.text(introW,mL,y,{align:'justify',maxWidth:W});
   y+=introW.length*lh+4;
 
   // ── CONDICIONES ───────────────────────────────────────────────────────────
-  doc.setFont('helvetica','bold');
+  checkPage(12);
+  doc.setFont('helvetica','bold'); doc.setFontSize(sz);
   doc.text('CONDICIONES', mL, y); y+=lh+1;
+
   doc.setFont('helvetica','normal'); doc.setFontSize(10);
   var precioStr=precio ? precio+' euros' : '............... euros';
   var juzStr=juzgado || '........................';
@@ -803,19 +852,22 @@ function generarCompraventaPDF(){
     '7.  Para cualquier litigio que surja entre las partes de la interpretaci\u00f3n o cumplimiento del presente contrato, \u00e9stas, con expresa renuncia al fuero que pudiera corresponderles, se someter\u00e1n a los Juzgados y Tribunales de '+juzStr+'.'
   ];
   conds.forEach(function(c){
-    var wrap=doc.splitTextToSize(c, W);
-    doc.text(wrap, mL, y, {align:'justify', maxWidth:W});
+    var wrap=doc.splitTextToSize(c,W);
+    checkPage(wrap.length*lh+4);
+    doc.text(wrap,mL,y,{align:'justify',maxWidth:W});
     y+=wrap.length*lh+2;
   });
   y+=3;
 
   // ── Cierre ────────────────────────────────────────────────────────────────
   var cierre='Y para que as\u00ed conste, firman el presente contrato de compraventa, por triplicado, en la fecha y lugar arriba indicados.';
-  var cierreW=doc.splitTextToSize(cierre, W);
-  doc.text(cierreW, mL, y, {align:'justify', maxWidth:W});
+  var cierreW=doc.splitTextToSize(cierre,W);
+  checkPage(cierreW.length*lh+35);
+  doc.text(cierreW,mL,y,{align:'justify',maxWidth:W});
   y+=cierreW.length*lh+10;
 
   // ── Firmas ────────────────────────────────────────────────────────────────
+  checkPage(30);
   doc.setFont('helvetica','bold'); doc.setFontSize(sz);
   doc.text('Firma del vendedor', mL+10, y);
   doc.text('Firma del comprador', 120, y);
@@ -830,6 +882,7 @@ function generarCompraventaPDF(){
 
   doc.save('Compraventa_'+matricula.replace(/\s/g,'')+'.pdf');
 }
+
 
 
 document.addEventListener("DOMContentLoaded",function(){
@@ -992,10 +1045,10 @@ document.addEventListener("DOMContentLoaded",function(){
     <!-- PREVIEW -->
     <main class="main-venia">
       <span class="main-label">Vista previa del documento</span>
-      <div id="cv-preview" style="width:100%;max-width:700px;background:#fff;border-radius:4px;
-           box-shadow:0 4px 40px rgba(0,0,0,.14);padding:40px 48px;
-           font-family:Arial,Helvetica,sans-serif;font-size:10.5px;
-           line-height:1.6;color:#111;">
+      <div id="cv-preview" style="width:100%;max-width:620px;aspect-ratio:210/297;
+           border-radius:4px;box-shadow:0 4px 40px rgba(0,0,0,.14);
+           font-family:Arial,Helvetica,sans-serif;font-size:clamp(7px,1.3vw,10px);
+           line-height:1.5;color:#111;position:relative;overflow:hidden;">
         <p style="text-align:center;color:#bbb;font-style:italic">
           Completa el formulario para ver la vista previa
         </p>
