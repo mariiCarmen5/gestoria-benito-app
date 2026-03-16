@@ -23,7 +23,7 @@
     .home-hero-title span{color:var(--crimson);font-weight:400;}
     .home-hero-sub{margin-top:12px;font-size:13px;color:var(--text-mid);max-width:480px;line-height:1.7;animation:fadeUp .7s .2s ease both;}
     .options-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,240px));gap:20px;margin-top:52px;justify-content:center;animation:fadeUp .7s .3s ease both;}
-    .option-card{background:var(--white);border:1.5px solid var(--border);border-radius:16px;padding:32px 24px 28px;display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;transition:all .2s;}
+    .option-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:28px 20px 22px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:all .2s;width:240px;}
     .option-card:hover{border-color:var(--crimson);box-shadow:0 8px 32px rgba(157,19,54,0.12);transform:translateY(-3px);}
     .option-icon{width:52px;height:52px;background:var(--crimson-light);border-radius:14px;display:flex;align-items:center;justify-content:center;}
     .option-icon svg{width:26px;height:26px;fill:var(--crimson);}
@@ -101,12 +101,14 @@
         </div>
         <span class="option-name">Compraventa Vehículos</span>
       </div>
+
       <div class="option-card" id="btn-goto-mandato">
         <div class="option-icon">
           <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
         </div>
         <span class="option-name">Mandato</span>
       </div>
+
       <div class="option-card" id="btn-goto-venia">
         <div class="option-icon">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
@@ -247,7 +249,7 @@ function generarPDF(){
   function gW(tok){doc.setFont("helvetica",tok.bold?"bold":"normal");return doc.getTextWidth(tok.text);}
   function sW(){doc.setFont("helvetica","normal");return doc.getTextWidth(" ");}
   function wP(parts,yPos){
-    var lH=9.5,tokens=[];
+    var lH=6.5,tokens=[];
     parts.forEach(function(p){p.text.split(" ").filter(function(w){return w;}).forEach(function(w){tokens.push({text:w,bold:p.bold});});});
     var base=sW(),lines=[],line=[],lineW=0;
     tokens.forEach(function(tok){
@@ -378,461 +380,245 @@ function updateMandatoPreview(){
 function generarMandatoPDF(){
   var n1=gm('m-nombre1'), dni1=gm('m-dni1').toUpperCase();
   var n2=gm('m-nombre2'), dni2=gm('m-dni2').toUpperCase();
-  var rep=gm('m-rep'), cifnif=gm('m-cifnif').toUpperCase();
-  var loc=gm('m-localidad'), cal=gm('m-calle'), num=gm('m-num'), cp=gm('m-cp');
-  var a1=gm('m-asunto1'), a2=gm('m-asunto2');
-  var lugar=gm('m-lugar');
+  var rep=gm('m-rep').toUpperCase(), cifnif=gm('m-cifnif').toUpperCase();
+  var loc=gm('m-localidad').toUpperCase(), cal=gm('m-calle').toUpperCase();
+  var num=gm('m-num').toUpperCase(), cp=gm('m-cp').toUpperCase();
+  var a1=gm('m-asunto1').toUpperCase(), a2=gm('m-asunto2').toUpperCase();
+  var lugar=gm('m-lugar').toUpperCase();
   var fd=parseFecha(document.getElementById('m-fecha').value);
+  var mesNombre=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var fechaStr='';
+  if(document.getElementById('m-fecha').value){
+    var p=document.getElementById('m-fecha').value.split('-');
+    fechaStr=parseInt(p[2])+' de '+mesNombre[parseInt(p[1])-1]+' de '+p[0];
+  }
 
   if(!n1||!dni1||!rep||!cifnif||!cal||!loc){
-    alert('Por favor completa los campos obligatorios (Mandante 1, DNI, Representado, DNI/CIF, Localidad y Calle).'); return;
+    alert('Por favor completa los campos obligatorios.');return;
   }
 
   var doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});
-  var mL=20, mR=20, W=210-mL-mR; // 170mm texto
+  // Márgenes
+  var mL=20, mR=20, W=170;
   var y=15;
-  var lh=5.0; // line height normal
-  var lhs=4.5; // line height small
+  var sz=8.5;      // tamaño fuente base
+  var lh=4.3;      // interlineado
 
-  // Header imagen centrada
+  // ── Cabecera con imagen ──────────────────────────────────────────────────
   doc.addImage(MANDATO_HDR_IMG,'JPEG',(210-55)/2, y, 55, 17);
-  y+=24;
+  y+=22;
 
-  // ── Helper: write mixed bold/normal/underline tokens, justified ──────────
-  function txtW(text,bold){
-    doc.setFont('helvetica', bold?'bold':'normal');
-    return doc.getTextWidth(text);
+  doc.setFontSize(sz);
+
+  // ── Función: línea con respuesta subrayada en normal ─────────────────────
+  // Escribe texto fijo (bold) + valor (normal, subrayado) inline
+  function lineaConValor(label, valor, yy){
+    doc.setFont('helvetica','bold'); doc.setFontSize(sz);
+    doc.text(label, mL, yy);
+    var labelW = doc.getTextWidth(label);
+    doc.setFont('helvetica','normal');
+    var val = valor || '';
+    // línea de 60mm si vacío, o el texto
+    var displayVal = val ? val : '';
+    var lineLen = Math.max(doc.getTextWidth(displayVal)+4, 60);
+    // siempre dibujar línea
+    doc.setLineWidth(0.25); doc.setDrawColor(0,0,0);
+    doc.line(mL+labelW, yy+0.8, mL+labelW+lineLen, yy+0.8);
+    if(val) doc.text(val, mL+labelW+1, yy);
+    return yy+lh+1;
   }
 
-  // Write a paragraph made of {t,b,u} tokens, justified, returns new y
-  function writePara(tokens, yStart, sz, lhh){
-    sz  = sz  || 10;
-    lhh = lhh || lh;
-    doc.setFontSize(sz);
-    // tokenise words keeping bold/underline metadata
+  // Párrafo justificado con tokens bold/normal, devuelve nueva y
+  function parrafoTokens(tokens, yy, szz, lhh){
+    szz = szz||sz; lhh = lhh||lh;
+    doc.setFontSize(szz);
+    // tokenizar
     var words=[];
     tokens.forEach(function(tok){
       tok.t.split(/\s+/).filter(Boolean).forEach(function(w){
-        words.push({t:w, b:tok.b||false, u:tok.u||false});
+        words.push({t:w,b:tok.b||false,u:tok.u||false});
       });
     });
-    // build lines
-    var spW = txtW(' ',false);
-    var lines=[], cur=[], curW=0;
+    var spW=doc.getTextWidth(' '); doc.setFont('helvetica','normal');
+    var lines=[],cur=[],curW=0;
     words.forEach(function(w){
-      var ww=txtW(w.t, w.b);
-      var needed = cur.length ? curW+spW+ww : ww;
-      if(needed > W){
-        if(cur.length) lines.push({words:cur,w:curW});
-        cur=[w]; curW=ww;
-      } else {
-        if(cur.length) curW+=spW;
-        cur.push(w); curW+=ww;
-      }
+      doc.setFont('helvetica',w.b?'bold':'normal');
+      var ww=doc.getTextWidth(w.t);
+      var needed=cur.length?curW+spW+ww:ww;
+      if(needed>W){if(cur.length)lines.push({words:cur,w:curW});cur=[w];curW=ww;}
+      else{if(cur.length)curW+=spW;cur.push(w);curW+=ww;}
     });
-    if(cur.length) lines.push({words:cur,w:curW,last:true});
-
-    var yy=yStart;
+    if(cur.length)lines.push({words:cur,w:curW,last:true});
     lines.forEach(function(ln){
-      // page break
-      if(yy>272){doc.addPage();yy=18;}
-      var sp=spW;
-      if(!ln.last && ln.words.length>1){
-        var totalWordW=ln.words.reduce(function(s,w){return s+txtW(w.t,w.b);},0);
-        sp=(W-totalWordW)/(ln.words.length-1);
+      var sp2=spW;
+      if(!ln.last&&ln.words.length>1){
+        var tw=ln.words.reduce(function(s,w){doc.setFont('helvetica',w.b?'bold':'normal');return s+doc.getTextWidth(w.t);},0);
+        sp2=(W-tw)/(ln.words.length-1);
       }
       var cx=mL;
       ln.words.forEach(function(w,i){
-        doc.setFont('helvetica', w.b?'bold':'normal');
-        doc.text(w.t, cx, yy);
-        if(w.u){
-          var tw=txtW(w.t,w.b);
-          doc.setLineWidth(0.25);doc.setDrawColor(20,20,20);
-          doc.line(cx,yy+0.7,cx+tw,yy+0.7);
-        }
-        cx+=txtW(w.t,w.b);
-        if(i<ln.words.length-1) cx+=sp;
+        doc.setFont('helvetica',w.b?'bold':'normal');
+        doc.text(w.t,cx,yy);
+        if(w.u){var tw2=doc.getTextWidth(w.t);doc.setLineWidth(0.25);doc.line(cx,yy+0.7,cx+tw2,yy+0.7);}
+        cx+=doc.getTextWidth(w.t);
+        if(i<ln.words.length-1)cx+=sp2;
       });
       yy+=lhh;
     });
-    return yy+1.5;
+    return yy+0.5;
   }
 
   function N(t){return{t:t,b:false};}
   function B(t){return{t:t,b:true};}
   function U(t){return{t:t,b:false,u:true};}
 
-  doc.setFontSize(10);
+  // ── BLOQUE MANDANTE ──────────────────────────────────────────────────────
+  // "D./ña. _______ con DNI _______"
+  var linea1 = 'D./\u00f1a. ';
+  doc.setFont('helvetica','normal'); doc.setFontSize(sz);
+  doc.text(linea1, mL, y);
+  var x1 = mL+doc.getTextWidth(linea1);
+  // valor n1
+  var n1disp = n1.toUpperCase();
+  doc.text(n1disp, x1+1, y);
+  doc.line(x1, y+0.8, x1+70, y+0.8);
+  var x2 = x1+72;
+  doc.setFont('helvetica','normal');
+  doc.text('con DNI', x2, y);
+  var x3 = x2+doc.getTextWidth('con DNI')+1;
+  doc.text(dni1, x3+1, y);
+  doc.line(x3, y+0.8, x3+40, y+0.8);
+  y+=lh+1;
 
-  // Línea 1: D./ña. [nombre1] con DNI [dni1]
-  y=writePara([N('D./ña.'),B(n1),N('con DNI'),B(dni1)], y);
+  // "y D./ña. _______ con DNI _______, que declara/n..."
+  var linea2='y D./\u00f1a. ';
+  doc.setFont('helvetica','normal');
+  doc.text(linea2, mL, y);
+  var xn2 = mL+doc.getTextWidth(linea2);
+  if(n2){doc.text(n2.toUpperCase(), xn2+1, y);}
+  doc.line(xn2, y+0.8, xn2+55, y+0.8);
+  var xd2 = xn2+57;
+  doc.text('con DNI', xd2, y);
+  var xd2v = xd2+doc.getTextWidth('con DNI')+1;
+  if(dni2){doc.text(dni2, xd2v+1, y);}
+  doc.line(xd2v, y+0.8, xd2v+38, y+0.8);
+  y+=lh+1;
 
-  // Línea 2: y D./ña. [nombre2] con DNI [dni2], que declara... representación de [rep] con DNI/CIF [cifnif]
-  var tok2=[N('y D./ña.'), B(n2||''), N('con DNI'), B(dni2||''),
-    N(', que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representación de'),
-    B(rep), N('con DNI/CIF nº'), B(cifnif)];
-  y=writePara(tok2, y);
+  y=parrafoTokens([N('que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representaci\u00f3n de')],y,sz,lh);
+  // representado + cifnif en línea con subrayado
+  doc.setFont('helvetica','normal');
+  doc.text(rep, mL+1, y);
+  doc.line(mL, y+0.8, mL+90, y+0.8);
+  doc.text('con DNI/CIF n\u00ba', mL+92, y);
+  var xcif=mL+92+doc.getTextWidth('con DNI/CIF n\u00ba')+1;
+  doc.text(cifnif, xcif+1, y);
+  doc.line(xcif, y+0.8, xcif+42, y+0.8);
+  y+=lh+1;
 
-  // Línea 3: y domicilio... calle nº CP MANDANTE
-  var tok3=[N('y domicilio a efectos de notificaciones en'), B(loc), N(', calle'),
-    B(cal), N('nº'), B(num), N('C.P.'), B(cp),
-    N(', en concepto de'), B('MANDANTE,'), N('dice y otorga:')];
-  y=writePara(tok3, y);
-  y+=2;
+  // domicilio
+  doc.text('y domicilio a efectos de notificaciones en', mL, y);
+  var xdom=mL+doc.getTextWidth('y domicilio a efectos de notificaciones en')+1;
+  doc.text(loc, xdom+1, y);
+  doc.line(xdom, y+0.8, xdom+45, y+0.8);
+  doc.text(', calle', xdom+46, y);
+  y+=lh+1;
+  doc.text(cal, mL+1, y);
+  doc.line(mL, y+0.8, mL+100, y+0.8);
+  doc.text('n\u00ba', mL+102, y);
+  doc.text(num, mL+108, y);
+  doc.line(mL+106, y+0.8, mL+118, y+0.8);
+  doc.text('C.P.', mL+120, y);
+  doc.text(cp, mL+128, y);
+  doc.line(mL+127, y+0.8, mL+150, y+0.8);
+  y+=lh+1;
 
-  // Párrafo gestoria fijo
-  var tokG=[N('Que por el presente documento confiere, con'), B('carácter específico,'),
-    B('MANDATO CON REPRESENTACIÓN'),
-    N('a favor de, el/los Gestor/es Administrativo/s en ejercicio, D./ña'),
-    U('MARIA DEL CARMEN BENITO REYES'), N(', con DNI'), U('43234774H'),
-    N(', número de colegiado'), U('5.18'),
-    N(', y D./ña , con DNI número de colegiado y D./ña ,')];
-  y=writePara(tokG, y);
+  y=parrafoTokens([N('en concepto de'),B('MANDANTE,'),N('dice y otorga:')],y,sz,lh);
+  y+=1;
 
-  var tokG2=[N('todos ellos pertenecientes al Colegio Oficial de Gestores Administrativos de'),
-    U('BALEARES'), N(', y al despacho profesional')];
-  y=writePara(tokG2, y);
+  // ── MANDATO CON REPRESENTACIÓN ────────────────────────────────────────────
+  y=parrafoTokens([
+    N('Que por el presente documento confiere, con'),B('car\u00e1cter espec\u00edfico,'),
+    B('MANDATO CON REPRESENTACI\u00d3N'),
+    N('a favor de, el/los Gestor/es Administrativo/s en ejercicio, D./\u00f1a'),
+    U('MARIA DEL CARMEN BENITO REYES'),N(', con DNI'),U('43234774H'),
+    N(', n\u00famero de colegiado'),U('5.18'),N(', todos ellos pertenecientes al Colegio Oficial de'),
+    N('Gestores Administrativos de'),U('BALEARES'),N(', y al despacho profesional'),
+    U('MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO'),
+    N(', con domicilio en'),U('PALMA'),N(', calle'),U('C/ FLUVIA'),
+    N('n\u00ba'),U('1 - BJ DR'),N('C.P.'),U('07009'),
+    N(', en concepto de'),B('MANDATARIO/S,'),
+    N('para su actuaci\u00f3n ante todos los \u00f3rganos y entidades de la Administraci\u00f3n del Estado, Auton\u00f3mica, Provincial y Local que resulten competentes, y espec\u00edficamente ante la Direcci\u00f3n General de Tr\u00e1fico del Ministerio del Interior del Gobierno de Espa\u00f1a, para que promueva, solicite y realice todos los tr\u00e1mites necesarios en relaci\u00f3n con el siguiente'),
+    B('ASUNTO:')
+  ],y,sz,lh);
+  y+=1;
 
-  var tokG3=[U('MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO'),
-    N(', con domicilio en'), U('PALMA'), N(', calle'), U('C/ FLUVIA'),
-    N('nº'), U('1 - BJ DR'), N('C.P.'), U('07009'),
-    N(', en concepto de'), B('MANDATARIO/S,'),
-    N('para su actuación ante todos los órganos y entidades de la Administración del Estado, Autonómica, Provincial y Local que resulten competentes, y específicamente ante la Dirección General de Tráfico del Ministerio del Interior del Gobierno de España, para que promueva, solicite y realice todos los trámites necesarios en relación con el siguiente'),
-    B('ASUNTO:')];
-  y=writePara(tokG3, y);
-  y+=2;
+  // Asuntos con bullet y línea
+  doc.setFont('helvetica','normal'); doc.setFontSize(sz);
+  doc.text('\u2022', mL, y);
+  if(a1){doc.text(a1,mL+5,y);}
+  doc.line(mL+4, y+0.8, mL+W, y+0.8);
+  y+=lh+1;
+  doc.text('\u2022', mL, y);
+  if(a2){doc.text(a2,mL+5,y);}
+  doc.line(mL+4, y+0.8, mL+W, y+0.8);
+  y+=lh+2;
 
-  // Asuntos
-  doc.setFont('helvetica','normal');doc.setFontSize(10);
-  doc.text('•', mL, y);
-  if(a1){
-    var a1wrap=doc.splitTextToSize(a1, W-6);
-    a1wrap.forEach(function(l){doc.text(l,mL+5,y);y+=lh;});
-  } else { y+=lh; }
-  doc.text('•', mL, y);
-  if(a2){
-    var a2wrap=doc.splitTextToSize(a2, W-6);
-    a2wrap.forEach(function(l){doc.text(l,mL+5,y);y+=lh;});
-  } else { y+=lh; }
-  y+=4;
-
-  // Párrafos legales
+  // ── PÁRRAFOS LEGALES (fuente más pequeña para que quepa en una hoja) ───────
+  var szL=7.0, lhL=3.8;
   var legales=[
-    'El presente mandato, que se regirá por los artículos 1709 a 1739 del Código Civil, se confiere al amparo del artículo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, y del artículo 1 del Estatuto Orgánico de la Profesión de Gestor Administrativo, aprobado por Decreto 424/1963.',
-    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendrá su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocación al mandatario/s, pudiendo ser su revocación parcial sobre alguno de ellos, quedando en todos los términos vigente sobre aquel/aquellos mandatario/s a quién/es no se le haya comunicado la revocación. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocación. En caso de fallecimiento, jubilación, o cese de negocio del mandatario/s, o cualquier otra causa que impida la terminación del mandato, el mandante autoriza de forma expresa que el trámite encomendado sea finalizado por el gestor/es administrativo/s que le/s sustituya/n oficialmente.',
-    'El mandante declara bajo su responsabilidad de conformidad con el artículo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentación que así lo acredita, que es auténtica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia, se compromete a ponerla a disposición de la Administración cuando le sea requerida, y a mantener el cumplimiento de las anteriores obligaciones durante el período de tiempo inherente al trámite conferido.',
-    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que serán responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de España, con el único objeto y plazo de posibilitar la prestación de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del trámite encomendado. No obstante, lo anterior, el mandatario se reserva el derecho de custodia y conservación de los datos personales recabados con fines de cumplimiento de obligaciones legales exigidas por la normativa tributaria, laboral, civil o mercantil, así como para la atención o emprendimiento de reclamaciones y/o acciones judiciales. El mandante tendrá derecho a la portabilidad de sus datos, a su acceso, rectificación, supresión, limitación, y oposición, dirigiéndose al Consejo General de Colegios de Gestores Administrativos de España en la dirección electrónica consejo@consejogestores.net, o por correo postal a la calle Mayor nº 58, 28013 de Madrid, así como en la dirección postal del Mandatario, donde podrá ampliar la información sobre sus derechos y ejercer los mismos, como a interponer las reclamaciones que estime oportunas ante la Agencia Española de Protección de Datos, o su equivalente en su país de residencia como Autoridad de Control, en los términos previstos en la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales, y el Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo de 27 de abril de 2016. Pudiendo ampliar la información sobre el tratamiento de sus datos en la dirección www.consejogestores.org (política de privacidad).'
+    'El presente mandato, que se regir\u00e1 por los art\u00edculos 1709 a 1739 del C\u00f3digo Civil, se confiere al amparo del art\u00edculo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Com\u00fan de las Administraciones P\u00fablicas, y del art\u00edculo 1 del Estatuto Org\u00e1nico de la Profesi\u00f3n de Gestor Administrativo, aprobado por Decreto 424/1963.',
+    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendr\u00e1 su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocaci\u00f3n al mandatario/s, pudiendo ser su revocaci\u00f3n parcial sobre alguno de ellos, quedando en todos los t\u00e9rminos vigente sobre aquel/aquellos mandatario/s a qui\u00e9n/es no se le haya comunicado la revocaci\u00f3n. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocaci\u00f3n. En caso de fallecimiento, jubilaci\u00f3n, o cese de negocio del mandatario/s, o cualquier otra causa que impida la terminaci\u00f3n del mandato, el mandante autoriza de forma expresa que el tr\u00e1mite encomendado sea finalizado por el gestor/es administrativo/s que le/s sustituya/n oficialmente.',
+    'El mandante declara bajo su responsabilidad de conformidad con el art\u00edculo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Com\u00fan de las Administraciones P\u00fablicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentaci\u00f3n que as\u00ed lo acredita, que es aut\u00e9ntica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia, se compromete a ponerla a disposici\u00f3n de la Administraci\u00f3n cuando le sea requerida, y a mantener el cumplimiento de las anteriores obligaciones durante el per\u00edodo de tiempo inherente al tr\u00e1mite conferido.',
+    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que ser\u00e1n responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de Espa\u00f1a, con el \u00fanico objeto y plazo de posibilitar la prestaci\u00f3n de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del tr\u00e1mite encomendado. No obstante, lo anterior, el mandatario se reserva el derecho de custodia y conservaci\u00f3n de los datos personales recabados con fines de cumplimiento de obligaciones legales exigidas por la normativa tributaria, laboral, civil o mercantil, as\u00ed como para la atenci\u00f3n o emprendimiento de reclamaciones y/o acciones judiciales. El mandante tendr\u00e1 derecho a la portabilidad de sus datos, a su acceso, rectificaci\u00f3n, supresi\u00f3n, limitaci\u00f3n, y oposici\u00f3n, dirigi\u00e9ndose al Consejo General de Colegios de Gestores Administrativos de Espa\u00f1a en la direcci\u00f3n electr\u00f3nica consejo@consejogestores.net, o por correo postal a la calle Mayor n\u00ba 58, 28013 de Madrid, as\u00ed como en la direcci\u00f3n postal del Mandatario, donde podr\u00e1 ampliar la informaci\u00f3n sobre sus derechos y ejercer los mismos, como a interponer las reclamaciones que estime oportunas ante la Agencia Espa\u00f1ola de Protecci\u00f3n de Datos, o su equivalente en su pa\u00eds de residencia como Autoridad de Control, en los t\u00e9rminos previstos en la Ley Org\u00e1nica 3/2018, de 5 de diciembre, de Protecci\u00f3n de Datos Personales y garant\u00eda de los derechos digitales, y el Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo de 27 de abril de 2016. Pudiendo ampliar la informaci\u00f3n sobre el tratamiento de sus datos en la direcci\u00f3n www.consejogestores.org (pol\u00edtica de privacidad).'
   ];
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.setFont('helvetica','normal'); doc.setFontSize(szL);
   legales.forEach(function(p){
-    if(y>272){doc.addPage();y=18;}
     var wrap=doc.splitTextToSize(p, W);
     doc.text(wrap, mL, y, {align:'justify', maxWidth:W});
-    y+=wrap.length*lhs+3;
+    y+=wrap.length*lhL+2;
   });
 
-  // Firma mandante
-  if(y>260){doc.addPage();y=20;}
-  y+=6;
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  var firmaLine='En '+lugar+' a '+fd.d+' de '+fd.m+' de '+fd.y;
-  doc.text(firmaLine, 105, y, {align:'center'}); y+=8;
+  // ── FIRMA MANDANTE ────────────────────────────────────────────────────────
+  y+=3;
+  doc.setFont('helvetica','normal'); doc.setFontSize(sz);
+  var firmaStr='En '+(lugar||'________________')+' a '+(fechaStr||'___ de ____________ de ____');
+  doc.text(firmaStr, 105, y, {align:'center'});
+  y+=7;
   doc.setFont('helvetica','bold');
-  doc.text('EL MANDANTE', 105, y, {align:'center'}); y+=22;
+  doc.text('EL MANDANTE', 105, y, {align:'center'});
+  y+=16;
 
-  // Párrafo final
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  var pFinal='El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la corrección formal de los datos contenidos en los mismos.';
-  var wrapFinal=doc.splitTextToSize(pFinal, W);
-  doc.text(wrapFinal, mL, y, {align:'justify', maxWidth:W});
-  y+=wrapFinal.length*lhs+8;
+  // Último párrafo
+  doc.setFont('helvetica','normal'); doc.setFontSize(szL);
+  var pFinal='El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la correcci\u00f3n formal de los datos contenidos en los mismos.';
+  var wFinal=doc.splitTextToSize(pFinal, W);
+  doc.text(wFinal, mL, y, {align:'justify', maxWidth:W});
+  y+=wFinal.length*lhL+4;
 
-  // Segunda firma: mandatario
-  if(y>265){doc.addPage();y=20;}
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  doc.text(firmaLine, 105, y, {align:'center'}); y+=8;
+  // Firma mandatario
+  doc.setFont('helvetica','normal'); doc.setFontSize(sz);
+  doc.text(firmaStr, 105, y, {align:'center'});
+  y+=7;
   doc.setFont('helvetica','bold');
   doc.text('EL MANDATARIO/S', 105, y, {align:'center'});
+
+  console.log('Total y used:', y, '/ 297mm');
 
   var nombre_pdf = n1 ? n1.replace(/\s+/g,'_') : 'Mandato';
   doc.save('Mandato_'+nombre_pdf+'.pdf');
 }
+
 
 
 // ═══════════════════════════════════════
 //  MANDATO
 // ═══════════════════════════════════════
-const MANDATO_HDR_IMG = "data:image/jpeg;base64,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";
-
-function goToMandato(){
-  document.getElementById("page-home").classList.remove("active");
-  document.getElementById("page-mandato").classList.add("active");
-  window.scrollTo(0,0);
-  updateMandatoPreview();
-}
-function goHomeMandato(){
-  document.getElementById("page-mandato").classList.remove("active");
-  document.getElementById("page-home").classList.add("active");
-  window.scrollTo(0,0);
-}
-
-function gm(id){ return document.getElementById(id).value.trim(); }
-
-function ph(t){ return '<span style="background:#fff3b0;padding:0 2px">'+t+'</span>'; }
-function fv(id,fallback){ var v=gm(id); return v ? '<strong>'+v+'</strong>' : ph(fallback); }
-function fvu(id,fallback){ var v=gm(id); return v ? '<strong><u>'+v.toUpperCase()+'</u></strong>' : ph(fallback); }
-
-function meses(){ return ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; }
-function parseFecha(val){
-  if(!val) return {d:'___',m:'___',y:'____'};
-  var p=val.split('-');
-  return {d:parseInt(p[2]),m:meses()[parseInt(p[1])-1],y:p[0]};
-}
-
-function updateMandatoPreview(){
-  var n1=gm('m-nombre1'), dni1=gm('m-dni1').toUpperCase();
-  var n2=gm('m-nombre2'), dni2=gm('m-dni2').toUpperCase();
-  var rep=gm('m-rep'), cifnif=gm('m-cifnif').toUpperCase();
-  var loc=gm('m-localidad'), cal=gm('m-calle'), num=gm('m-num'), cp=gm('m-cp');
-  var a1=gm('m-asunto1'), a2=gm('m-asunto2');
-  var lugar=gm('m-lugar');
-  var fd=parseFecha(document.getElementById('m-fecha').value);
-
-  function V(v,fb){ return v?'<strong>'+v+'</strong>':ph(fb); }
-  function VU(v,fb){ return v?'<strong>'+v.toUpperCase()+'</strong>':ph(fb); }
-
-  var o='';
-  o+='<div style="text-align:center;margin-bottom:18px">';
-  o+='<img src="'+MANDATO_HDR_IMG+'" style="height:55px"/></div>';
-
-  // Bloque 1: mandante
-  o+='<p style="margin:0 0 6px">D./ña. '+V(n1,'nombre mandante')+' con DNI '+VU(dni1,'DNI')+'</p>';
-  o+='<p style="margin:0 0 6px">y D./ña. '+V(n2||'','___')+' con DNI '+VU(dni2||'','___')+', que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representación de '+V(rep,'nombre/empresa representada')+' con DNI/CIF nº '+VU(cifnif,'DNI/CIF')+'</p>';
-  o+='<p style="margin:0 0 6px">y domicilio a efectos de notificaciones en '+V(loc,'localidad')+', calle '+V(cal,'calle')+' nº '+V(num,'nº')+' C.P. '+V(cp,'C.P.')+', en concepto de <strong>MANDANTE,</strong> dice y otorga:</p>';
-
-  // Bloque 2: texto fijo gestoria
-  o+='<p style="margin:8px 0 6px;text-align:justify">Que por el presente documento confiere, con <strong>carácter específico</strong>, <strong>MANDATO CON REPRESENTACIÓN</strong> a favor de, el/los Gestor/es Administrativo/s en ejercicio, D./ña <u>MARIA DEL CARMEN BENITO REYES</u>, con DNI <u>43234774H</u>, número de colegiado <u>5.18</u>, y D./ña&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;, con DNI&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; número de colegiado&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y D./ña&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;,</p>';
-  o+='<p style="margin:0 0 6px;text-align:justify">todos ellos pertenecientes al Colegio Oficial de Gestores Administrativos de <u>BALEARES</u>, y al despacho profesional</p>';
-  o+='<p style="margin:0 0 6px;text-align:justify"><u>MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO</u>, con domicilio en <u>PALMA</u>, calle <u>C/ FLUVIA</u> nº <u>1 - BJ DR</u> C.P. <u>07009</u>, en concepto de <strong>MANDATARIO/S,</strong> para su actuación ante todos los órganos y entidades de la Administración del Estado, Autonómica, Provincial y Local que resulten competentes, y específicamente ante la Dirección General de Tráfico del Ministerio del Interior del Gobierno de España, para que promueva, solicite y realice todos los trámites necesarios en relación con el siguiente <strong>ASUNTO:</strong></p>';
-
-  // Asuntos
-  o+='<p style="margin:6px 0 2px">• '+(a1?'<strong>'+a1+'</strong>':ph('Asunto 1'))+'</p>';
-  o+='<p style="margin:0 0 6px">• '+(a2?'<strong>'+a2+'</strong>':ph('Asunto 2 (opcional)'))+'</p>';
-
-  // Párrafos legales
-  var plegales=[
-    'El presente mandato, que se regirá por los artículos 1709 a 1739 del Código Civil, se confiere al amparo del artículo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, y del artículo 1 del Estatuto Orgánico de la Profesión de Gestor Administrativo, aprobado por Decreto 424/1963.',
-    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendrá su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocación al mandatario/s, pudiendo ser su revocación parcial sobre alguno de ellos, quedando en todos los términos vigente sobre aquel/aquellos mandatario/s a quién/es no se le haya comunicado la revocación. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocación. En caso de fallecimiento, jubilación, o cese de negocio del mandatario/s, o cualquier otra causa que impida la terminación del mandato, el mandante autoriza de forma expresa que el trámite encomendado sea finalizado por el gestor/es administrativo/s que le/s sustituya/n oficialmente.',
-    'El mandante declara bajo su responsabilidad de conformidad con el artículo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentación que así lo acredita, que es auténtica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia, se compromete a ponerla a disposición de la Administración cuando le sea requerida, y a mantener el cumplimiento de las anteriores obligaciones durante el período de tiempo inherente al trámite conferido.',
-    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que serán responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de España, con el único objeto y plazo de posibilitar la prestación de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del trámite encomendado. No obstante, lo anterior, el mandatario se reserva el derecho de custodia y conservación de los datos personales recabados con fines de cumplimiento de obligaciones legales exigidas por la normativa tributaria, laboral, civil o mercantil, así como para la atención o emprendimiento de reclamaciones y/o acciones judiciales. El mandante tendrá derecho a la portabilidad de sus datos, a su acceso, rectificación, supresión, limitación, y oposición, dirigiéndose al Consejo General de Colegios de Gestores Administrativos de España en la dirección electrónica consejo@consejogestores.net, o por correo postal a la calle Mayor nº 58, 28013 de Madrid, así como en la dirección postal del Mandatario, donde podrá ampliar la información sobre sus derechos y ejercer los mismos, como a interponer las reclamaciones que estime oportunas ante la Agencia Española de Protección de Datos, o su equivalente en su país de residencia como Autoridad de Control, en los términos previstos en la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales, y el Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo de 27 de abril de 2016. Pudiendo ampliar la información sobre el tratamiento de sus datos en la dirección www.consejogestores.org (política de privacidad).'
-  ];
-  plegales.forEach(function(p){ o+='<p style="margin:8px 0;text-align:justify;font-size:9.5px">'+p+'</p>'; });
-
-  // Firma mandante
-  o+='<p style="margin:14px 0 4px;text-align:center">En '+V(lugar,'___')+' a <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong></p>';
-  o+='<p style="text-align:center;font-weight:bold;margin:0 0 30px">EL MANDANTE</p>';
-
-  // Último párrafo
-  o+='<p style="margin:0 0 8px;text-align:justify;font-size:9.5px">El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la corrección formal de los datos contenidos en los mismos.</p>';
-  o+='<p style="margin:14px 0 4px;text-align:center">En '+V(lugar,'___')+' a <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong></p>';
-  o+='<p style="text-align:center;font-weight:bold;margin:0">EL MANDATARIO/S</p>';
-
-  document.getElementById('mandato-preview').innerHTML=o;
-}
-
-function generarMandatoPDF(){
-  var n1=gm('m-nombre1'), dni1=gm('m-dni1').toUpperCase();
-  var n2=gm('m-nombre2'), dni2=gm('m-dni2').toUpperCase();
-  var rep=gm('m-rep'), cifnif=gm('m-cifnif').toUpperCase();
-  var loc=gm('m-localidad'), cal=gm('m-calle'), num=gm('m-num'), cp=gm('m-cp');
-  var a1=gm('m-asunto1'), a2=gm('m-asunto2');
-  var lugar=gm('m-lugar');
-  var fd=parseFecha(document.getElementById('m-fecha').value);
-
-  if(!n1||!dni1||!rep||!cifnif||!cal||!loc){
-    alert('Por favor completa los campos obligatorios (Mandante 1, DNI, Representado, DNI/CIF, Localidad y Calle).'); return;
-  }
-
-  var doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});
-  var mL=20, mR=20, W=210-mL-mR; // 170mm texto
-  var y=15;
-  var lh=5.0; // line height normal
-  var lhs=4.5; // line height small
-
-  // Header imagen centrada
-  doc.addImage(MANDATO_HDR_IMG,'JPEG',(210-55)/2, y, 55, 17);
-  y+=24;
-
-  // ── Helper: write mixed bold/normal/underline tokens, justified ──────────
-  function txtW(text,bold){
-    doc.setFont('helvetica', bold?'bold':'normal');
-    return doc.getTextWidth(text);
-  }
-
-  // Write a paragraph made of {t,b,u} tokens, justified, returns new y
-  function writePara(tokens, yStart, sz, lhh){
-    sz  = sz  || 10;
-    lhh = lhh || lh;
-    doc.setFontSize(sz);
-    // tokenise words keeping bold/underline metadata
-    var words=[];
-    tokens.forEach(function(tok){
-      tok.t.split(/\s+/).filter(Boolean).forEach(function(w){
-        words.push({t:w, b:tok.b||false, u:tok.u||false});
-      });
-    });
-    // build lines
-    var spW = txtW(' ',false);
-    var lines=[], cur=[], curW=0;
-    words.forEach(function(w){
-      var ww=txtW(w.t, w.b);
-      var needed = cur.length ? curW+spW+ww : ww;
-      if(needed > W){
-        if(cur.length) lines.push({words:cur,w:curW});
-        cur=[w]; curW=ww;
-      } else {
-        if(cur.length) curW+=spW;
-        cur.push(w); curW+=ww;
-      }
-    });
-    if(cur.length) lines.push({words:cur,w:curW,last:true});
-
-    var yy=yStart;
-    lines.forEach(function(ln){
-      // page break
-      if(yy>272){doc.addPage();yy=18;}
-      var sp=spW;
-      if(!ln.last && ln.words.length>1){
-        var totalWordW=ln.words.reduce(function(s,w){return s+txtW(w.t,w.b);},0);
-        sp=(W-totalWordW)/(ln.words.length-1);
-      }
-      var cx=mL;
-      ln.words.forEach(function(w,i){
-        doc.setFont('helvetica', w.b?'bold':'normal');
-        doc.text(w.t, cx, yy);
-        if(w.u){
-          var tw=txtW(w.t,w.b);
-          doc.setLineWidth(0.25);doc.setDrawColor(20,20,20);
-          doc.line(cx,yy+0.7,cx+tw,yy+0.7);
-        }
-        cx+=txtW(w.t,w.b);
-        if(i<ln.words.length-1) cx+=sp;
-      });
-      yy+=lhh;
-    });
-    return yy+1.5;
-  }
-
-  function N(t){return{t:t,b:false};}
-  function B(t){return{t:t,b:true};}
-  function U(t){return{t:t,b:false,u:true};}
-
-  doc.setFontSize(10);
-
-  // Línea 1: D./ña. [nombre1] con DNI [dni1]
-  y=writePara([N('D./ña.'),B(n1),N('con DNI'),B(dni1)], y);
-
-  // Línea 2: y D./ña. [nombre2] con DNI [dni2], que declara... representación de [rep] con DNI/CIF [cifnif]
-  var tok2=[N('y D./ña.'), B(n2||''), N('con DNI'), B(dni2||''),
-    N(', que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representación de'),
-    B(rep), N('con DNI/CIF nº'), B(cifnif)];
-  y=writePara(tok2, y);
-
-  // Línea 3: y domicilio... calle nº CP MANDANTE
-  var tok3=[N('y domicilio a efectos de notificaciones en'), B(loc), N(', calle'),
-    B(cal), N('nº'), B(num), N('C.P.'), B(cp),
-    N(', en concepto de'), B('MANDANTE,'), N('dice y otorga:')];
-  y=writePara(tok3, y);
-  y+=2;
-
-  // Párrafo gestoria fijo
-  var tokG=[N('Que por el presente documento confiere, con'), B('carácter específico,'),
-    B('MANDATO CON REPRESENTACIÓN'),
-    N('a favor de, el/los Gestor/es Administrativo/s en ejercicio, D./ña'),
-    U('MARIA DEL CARMEN BENITO REYES'), N(', con DNI'), U('43234774H'),
-    N(', número de colegiado'), U('5.18'),
-    N(', y D./ña , con DNI número de colegiado y D./ña ,')];
-  y=writePara(tokG, y);
-
-  var tokG2=[N('todos ellos pertenecientes al Colegio Oficial de Gestores Administrativos de'),
-    U('BALEARES'), N(', y al despacho profesional')];
-  y=writePara(tokG2, y);
-
-  var tokG3=[U('MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO'),
-    N(', con domicilio en'), U('PALMA'), N(', calle'), U('C/ FLUVIA'),
-    N('nº'), U('1 - BJ DR'), N('C.P.'), U('07009'),
-    N(', en concepto de'), B('MANDATARIO/S,'),
-    N('para su actuación ante todos los órganos y entidades de la Administración del Estado, Autonómica, Provincial y Local que resulten competentes, y específicamente ante la Dirección General de Tráfico del Ministerio del Interior del Gobierno de España, para que promueva, solicite y realice todos los trámites necesarios en relación con el siguiente'),
-    B('ASUNTO:')];
-  y=writePara(tokG3, y);
-  y+=2;
-
-  // Asuntos
-  doc.setFont('helvetica','normal');doc.setFontSize(10);
-  doc.text('•', mL, y);
-  if(a1){
-    var a1wrap=doc.splitTextToSize(a1, W-6);
-    a1wrap.forEach(function(l){doc.text(l,mL+5,y);y+=lh;});
-  } else { y+=lh; }
-  doc.text('•', mL, y);
-  if(a2){
-    var a2wrap=doc.splitTextToSize(a2, W-6);
-    a2wrap.forEach(function(l){doc.text(l,mL+5,y);y+=lh;});
-  } else { y+=lh; }
-  y+=4;
-
-  // Párrafos legales
-  var legales=[
-    'El presente mandato, que se regirá por los artículos 1709 a 1739 del Código Civil, se confiere al amparo del artículo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, y del artículo 1 del Estatuto Orgánico de la Profesión de Gestor Administrativo, aprobado por Decreto 424/1963.',
-    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendrá su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocación al mandatario/s, pudiendo ser su revocación parcial sobre alguno de ellos, quedando en todos los términos vigente sobre aquel/aquellos mandatario/s a quién/es no se le haya comunicado la revocación. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocación. En caso de fallecimiento, jubilación, o cese de negocio del mandatario/s, o cualquier otra causa que impida la terminación del mandato, el mandante autoriza de forma expresa que el trámite encomendado sea finalizado por el gestor/es administrativo/s que le/s sustituya/n oficialmente.',
-    'El mandante declara bajo su responsabilidad de conformidad con el artículo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentación que así lo acredita, que es auténtica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia, se compromete a ponerla a disposición de la Administración cuando le sea requerida, y a mantener el cumplimiento de las anteriores obligaciones durante el período de tiempo inherente al trámite conferido.',
-    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que serán responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de España, con el único objeto y plazo de posibilitar la prestación de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del trámite encomendado. No obstante, lo anterior, el mandatario se reserva el derecho de custodia y conservación de los datos personales recabados con fines de cumplimiento de obligaciones legales exigidas por la normativa tributaria, laboral, civil o mercantil, así como para la atención o emprendimiento de reclamaciones y/o acciones judiciales. El mandante tendrá derecho a la portabilidad de sus datos, a su acceso, rectificación, supresión, limitación, y oposición, dirigiéndose al Consejo General de Colegios de Gestores Administrativos de España en la dirección electrónica consejo@consejogestores.net, o por correo postal a la calle Mayor nº 58, 28013 de Madrid, así como en la dirección postal del Mandatario, donde podrá ampliar la información sobre sus derechos y ejercer los mismos, como a interponer las reclamaciones que estime oportunas ante la Agencia Española de Protección de Datos, o su equivalente en su país de residencia como Autoridad de Control, en los términos previstos en la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales, y el Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo de 27 de abril de 2016. Pudiendo ampliar la información sobre el tratamiento de sus datos en la dirección www.consejogestores.org (política de privacidad).'
-  ];
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  legales.forEach(function(p){
-    if(y>272){doc.addPage();y=18;}
-    var wrap=doc.splitTextToSize(p, W);
-    doc.text(wrap, mL, y, {align:'justify', maxWidth:W});
-    y+=wrap.length*lhs+3;
-  });
-
-  // Firma mandante
-  if(y>260){doc.addPage();y=20;}
-  y+=6;
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  var firmaLine='En '+lugar+' a '+fd.d+' de '+fd.m+' de '+fd.y;
-  doc.text(firmaLine, 105, y, {align:'center'}); y+=8;
-  doc.setFont('helvetica','bold');
-  doc.text('EL MANDANTE', 105, y, {align:'center'}); y+=22;
-
-  // Párrafo final
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  var pFinal='El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la corrección formal de los datos contenidos en los mismos.';
-  var wrapFinal=doc.splitTextToSize(pFinal, W);
-  doc.text(wrapFinal, mL, y, {align:'justify', maxWidth:W});
-  y+=wrapFinal.length*lhs+8;
-
-  // Segunda firma: mandatario
-  if(y>265){doc.addPage();y=20;}
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  doc.text(firmaLine, 105, y, {align:'center'}); y+=8;
-  doc.setFont('helvetica','bold');
-  doc.text('EL MANDATARIO/S', 105, y, {align:'center'});
-
-  var nombre_pdf = n1 ? n1.replace(/\s+/g,'_') : 'Mandato';
-  doc.save('Mandato_'+nombre_pdf+'.pdf');
-}
-
-
-// ═══════════════════════════════════════
-//  COMPRAVENTA VEHÍCULOS
-// ═══════════════════════════════════════
 function goToCompraventa(){
   document.getElementById("page-home").classList.remove("active");
   document.getElementById("page-compraventa").classList.add("active");
   window.scrollTo(0,0);
+  updateCvPreview();
 }
 function goHomeCv(){
   document.getElementById("page-compraventa").classList.remove("active");
@@ -840,33 +626,20 @@ function goHomeCv(){
   window.scrollTo(0,0);
 }
 
-function gcv(id){ return document.getElementById(id).value.trim(); }
-
-function mesesCV(){ return ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; }
-function parseFechaCv(val){
-  if(!val) return {d:'........',m:'...............',y:'........'};
-  var p=val.split('-');
-  return {d:parseInt(p[2]),m:mesesCV()[parseInt(p[1])-1],y:p[0]};
-}
-
-
-function mesesCV(){ return ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; }
-function parseFechaCv(val){
-  if(!val) return {d:'........',m:'...............',y:'........'};
-  var p=val.split('-');
-  return {d:parseInt(p[2]),m:mesesCV()[parseInt(p[1])-1],y:p[0]};
-}
+// ── Compraventa: helpers y preview ───────────────────────────────────────────
 function gcv(id){ var el=document.getElementById(id); return el?el.value.trim():''; }
-
+function mesesCV(){ return ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; }
+function parseFechaCv(val){
+  if(!val) return {d:'........',m:'...............',y:'........'};
+  var p=val.split('-');
+  return {d:parseInt(p[2]),m:mesesCV()[parseInt(p[1])-1],y:p[0]};
+}
 function phcv(t){ return '<span style="background:#fff3b0;padding:0 2px">'+t+'</span>'; }
-function Vcv(id,fb){ var v=gcv(id); return v?'<strong>'+v+'</strong>':phcv(fb); }
-function VcvU(id,fb){ var v=gcv(id); return v?'<strong>'+v.toUpperCase()+'</strong>':phcv(fb); }
 
 function updateCvPreview(){
   var lugar=gcv('cv-lugar'), juzgado=gcv('cv-juzgado');
   var hora=gcv('cv-hora')||'...............';
   var fd=parseFechaCv(document.getElementById('cv-fecha').value);
-
   var vN=gcv('cv-v-nombre'),vD=gcv('cv-v-dni').toUpperCase();
   var vC=gcv('cv-v-ciudad'),vCa=gcv('cv-v-calle');
   var cN=gcv('cv-c-nombre'),cD=gcv('cv-c-dni').toUpperCase();
@@ -874,62 +647,40 @@ function updateCvPreview(){
   var mat=gcv('cv-matricula').toUpperCase(), marca=gcv('cv-marca');
   var modelo=gcv('cv-modelo'), bastidor=gcv('cv-bastidor').toUpperCase();
   var km=gcv('cv-km'), precio=gcv('cv-precio');
-
   function V(v,fb){ return v?'<strong>'+v+'</strong>':phcv(fb); }
-
   var o='';
-  // Título
-  o+='<h2 style="font-size:20px;font-weight:400;line-height:1.2;margin:0 0 18px">Contrato de compraventa de un vehículo usado entre particulares</h2>';
-
-  // Encabezado
-  o+='<p style="margin:0 0 12px"><strong>En </strong>'+V(lugar,'ciudad')+' <strong>a</strong> <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong> &nbsp; <strong>HORA:</strong> '+hora+'</p>';
-
-  // Vendedor
+  o+='<h2 style="font-size:19px;font-weight:400;line-height:1.2;margin:0 0 16px">Contrato de compraventa de un veh\u00edculo usado entre particulares</h2>';
+  o+='<p style="margin:0 0 12px"><strong>En </strong>'+V(lugar,'ciudad')+' <strong>a</strong> <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong>&nbsp;&nbsp;<strong>HORA:</strong> '+hora+'</p>';
   o+='<p style="margin:0 0 4px"><strong>Vendedor:</strong></p>';
-  o+='<p style="margin:0 0 12px">'+V(vN,'nombre vendedor')+', con N.I.F. nº '+V(vD,'NIF')+', y domicilio en '+V(vC,'ciudad')+', calle de '+V(vCa,'dirección')+'</p>';
-
-  // Comprador
+  o+='<p style="margin:0 0 12px">'+V(vN,'nombre vendedor')+', con N.I.F. n\u00ba '+V(vD,'NIF')+', y domicilio en '+V(vC,'ciudad')+', calle de '+V(vCa,'direcci\u00f3n')+'</p>';
   o+='<p style="margin:0 0 4px"><strong>Comprador:</strong></p>';
-  o+='<p style="margin:0 0 12px">'+V(cN,'nombre comprador')+', con N.I.F. nº '+V(cD,'NIF')+', y domicilio en '+V(cC,'ciudad')+', calle de '+V(cCa,'dirección')+'</p>';
-
-  // Vehículo
-  o+='<p style="margin:0 0 6px"><strong>Vehículo:</strong></p>';
+  o+='<p style="margin:0 0 12px">'+V(cN,'nombre comprador')+', con N.I.F. n\u00ba '+V(cD,'NIF')+', y domicilio en '+V(cC,'ciudad')+', calle de '+V(cCa,'direcci\u00f3n')+'</p>';
+  o+='<p style="margin:0 0 6px"><strong>Veh\u00edculo:</strong></p>';
   o+='<ul style="margin:0 0 12px;padding-left:20px">';
   o+='<li><strong>Marca:</strong> '+V(marca+(modelo?' '+modelo:''),'marca modelo')+'</li>';
-  o+='<li><strong>Matrícula:</strong> '+V(mat,'matrícula')+'</li>';
-  o+='<li><strong>Nº de Bastidor:</strong> '+V(bastidor,'bastidor VIN')+'</li>';
-  o+='<li><strong>Kilómetros:</strong> '+(km?'<strong>'+km+' km</strong>':phcv('km'))+'</li>';
+  o+='<li><strong>Matr\u00edcula:</strong> '+V(mat,'matr\u00edcula')+'</li>';
+  o+='<li><strong>N\u00ba de Bastidor:</strong> '+V(bastidor,'bastidor VIN')+'</li>';
+  o+='<li><strong>Kil\u00f3metros:</strong> '+(km?'<strong>'+km+' km</strong>':phcv('km'))+'</li>';
   o+='</ul>';
-
-  // Intro
-  o+='<p style="margin:0 0 10px;text-align:justify">Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento <strong>CONTRATO DE COMPRAVENTA</strong> del vehículo automóvil que se especifica, en las siguientes:</p>';
-
-  // Condiciones
+  o+='<p style="margin:0 0 10px;text-align:justify">Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento <strong>CONTRATO DE COMPRAVENTA</strong> del veh\u00edculo autom\u00f3vil que se especifica, en las siguientes:</p>';
   o+='<p style="margin:0 0 6px"><strong>CONDICIONES</strong></p>';
   var precioStr=precio?precio+' euros':phcv('precio');
   var juzStr=juzgado?'<strong>'+juzgado+'</strong>':phcv('juzgado');
   var conds=[
-    '1. El vendedor vende al comprador el vehículo de su propiedad anteriormente especificado por la cantidad de '+precioStr+', sin incluir los impuestos correspondientes, que serán a cargo del comprador.',
-    '2. El vendedor declara que no pesa sobre el vehículo ninguna carga o gravamen ni impuesto, deuda o sanción pendientes de abono en la fecha de la firma de este contrato, comprometiéndose en caso contrario a regularizar la situación a su exclusivo cargo.',
-    '3. El vendedor se compromete a facilitar los distintos documentos relativos al vehículo, así como a firmar cuantos documentos aparte de éste sean necesarios para que el vehículo quede correctamente inscrito a nombre del comprador en los correspondientes organismos públicos, siendo todos los gastos a cargo del comprador.',
-    '4. Una vez realizada la correspondiente transferencia en Tráfico, el vendedor entregará materialmente al comprador la posesión del vehículo, haciéndose el comprador cargo de cuantas responsabilidades puedan contraerse por la propiedad del vehículo y su tenencia y uso a partir de dicho momento de la entrega.',
-    '5. El vehículo se encuentra al corriente respecto a las obligaciones derivadas de la ITV (Inspección Técnica de Vehículos).',
-    '6. El vendedor responderá por el estado del vehículo en los términos establecidos en la legislación civil aplicable.',
-    '7. Para cualquier litigio que surja entre las partes de la interpretación o cumplimiento del presente contrato, éstas, con expresa renuncia al fuero que pudiera corresponderles, se someterán a los Juzgados y Tribunales de '+juzStr+'.'
+    '1. El vendedor vende al comprador el veh\u00edculo de su propiedad anteriormente especificado por la cantidad de '+precioStr+', sin incluir los impuestos correspondientes, que ser\u00e1n a cargo del comprador.',
+    '2. El vendedor declara que no pesa sobre el veh\u00edculo ninguna carga o gravamen ni impuesto, deuda o sanci\u00f3n pendientes de abono en la fecha de la firma de este contrato, comprometiendo se en caso contrario a regularizar la situaci\u00f3n a su exclusivo cargo.',
+    '3. El vendedor se compromete a facilitar los distintos documentos relativos al veh\u00edculo, as\u00ed como a firmar cuantos documentos aparte de \u00e9ste sean necesarios para que el veh\u00edculo quede correctamente inscrito a nombre del comprador en los correspondientes organismos p\u00fablicos, siendo todos los gastos a cargo del comprador.',
+    '4. Una vez realizada la correspondiente transferencia en Tr\u00e1fico, el vendedor entregar\u00e1 materialmente al comprador la posesi\u00f3n del veh\u00edculo, haci\u00e9ndose el comprador cargo de cuantas responsabilidades puedan contraerse por la propiedad del veh\u00edculo y su tenencia y uso a partir de dicho momento de la entrega.',
+    '5. El veh\u00edculo se encuentra al corriente respecto a las obligaciones derivadas de la ITV (Inspecci\u00f3n T\u00e9cnica de Veh\u00edculos).',
+    '6. El vendedor responder\u00e1 por el estado del veh\u00edculo en los t\u00e9rminos establecidos en la legislaci\u00f3n civil aplicable.',
+    '7. Para cualquier litigio que surja entre las partes de la interpretaci\u00f3n o cumplimiento del presente contrato, \u00e9stas, con expresa renuncia al fuero que pudiera corresponderles, se someter\u00e1n a los Juzgados y Tribunales de '+juzStr+'.'
   ];
-  conds.forEach(function(c){ o+='<p style="margin:0 0 6px;text-align:justify;font-size:9.5px">'+c+'</p>'; });
-
-  // Cierre
-  o+='<p style="margin:10px 0 20px;text-align:justify">Y para que así conste, firman el presente contrato de compraventa, por triplicado, en la fecha y lugar arriba indicados.</p>';
-
-  // Firmas
+  conds.forEach(function(c){ o+='<p style="margin:0 0 5px;text-align:justify;font-size:9.5px">'+c+'</p>'; });
+  o+='<p style="margin:10px 0 20px;text-align:justify">Y para que as\u00ed conste, firman el presente contrato de compraventa, por triplicado, en la fecha y lugar arriba indicados.</p>';
   o+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px">';
-  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del vendedor</p>';
-  o+='<div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(vN,'Nombre vendedor')+'</div></div>';
-  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del comprador</p>';
-  o+='<div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(cN,'Nombre comprador')+'</div></div>';
+  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del vendedor</p><div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(vN,'Nombre vendedor')+'</div></div>';
+  o+='<div><p style="font-weight:bold;margin:0 0 28px">Firma del comprador</p><div style="border-top:1px solid #999;padding-top:4px;font-size:9px">'+V(cN,'Nombre comprador')+'</div></div>';
   o+='</div>';
-
   document.getElementById('cv-preview').innerHTML=o;
 }
 
@@ -1094,6 +845,14 @@ document.addEventListener("DOMContentLoaded",function(){
   document.getElementById("btn-goto-compraventa").addEventListener("click",goToCompraventa);
   document.getElementById("btn-cv-back").addEventListener("click",goHomeCv);
   document.getElementById("btn-cv-pdf").addEventListener("click",generarCompraventaPDF);
+  ["cv-lugar","cv-fecha","cv-hora","cv-juzgado",
+   "cv-v-nombre","cv-v-dni","cv-v-ciudad","cv-v-calle",
+   "cv-c-nombre","cv-c-dni","cv-c-ciudad","cv-c-calle",
+   "cv-matricula","cv-marca","cv-modelo","cv-bastidor","cv-km","cv-precio"
+  ].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener("input", updateCvPreview);
+  });
   ["cv-lugar","cv-fecha","cv-hora","cv-juzgado",
    "cv-v-nombre","cv-v-dni","cv-v-ciudad","cv-v-calle",
    "cv-c-nombre","cv-c-dni","cv-c-ciudad","cv-c-calle",
