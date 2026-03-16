@@ -678,12 +678,12 @@ function updateCvPreview(){
 
   // Vehículo
   o+='<p style="margin:0 0 0.2em"><strong>Veh\u00edculo:</strong></p>';
-  o+='<ul style="margin:0 0 0.5em;padding-left:1.2em">';
-  o+='<li><strong>Marca:</strong> '+V(marca+(modelo?' '+modelo:''),'marca modelo')+'</li>';
-  o+='<li><strong>Matr\u00edcula:</strong> '+V(mat,'matr\u00edcula')+'</li>';
-  o+='<li><strong>N\u00ba de Bastidor:</strong> '+V(bastidor,'bastidor VIN')+'</li>';
-  o+='<li><strong>Kil\u00f3metros:</strong> '+(km?'<strong>'+km+' km</strong>':'<span style="background:#fff3b0">km</span>')+'</li>';
-  o+='</ul>';
+  o+='<table style="margin:0 0 0.5em 0.3em;border-collapse:collapse;font-size:inherit">';
+  o+='<tr><td style="font-weight:bold;padding:1px 8px 1px 0;white-space:nowrap">&bull; Marca:</td><td>'+V(marca+(modelo?' '+modelo:''),'marca modelo')+'</td></tr>';
+  o+='<tr><td style="font-weight:bold;padding:1px 8px 1px 0;white-space:nowrap">&bull; Matr\u00edcula:</td><td>'+V(mat,'matr\u00edcula')+'</td></tr>';
+  o+='<tr><td style="font-weight:bold;padding:1px 8px 1px 0;white-space:nowrap">&bull; N\u00ba de Bastidor:</td><td>'+V(bastidor,'bastidor VIN')+'</td></tr>';
+  o+='<tr><td style="font-weight:bold;padding:1px 8px 1px 0;white-space:nowrap">&bull; Kil\u00f3metros:</td><td>'+(km?'<strong>'+km+' km</strong>':'<span style="background:#fff3b0">km</span>')+'</td></tr>';
+  o+='</table>';
 
   // Intro
   o+='<p style="margin:0 0 0.5em;text-align:justify">Reunidos vendedor y comprador en la fecha del encabezamiento, manifiestan haber acordado formalizar en este documento <strong>CONTRATO DE COMPRAVENTA</strong> del veh\u00edculo autom\u00f3vil que se especifica, en las siguientes:</p>';
@@ -819,9 +819,12 @@ function generarCompraventaPDF(){
     ['Kil\u00f3metros: ', km ? km+' km' : '......................']
   ];
   vehicItems.forEach(function(it){
-    doc.setFont('helvetica','bold'); doc.text('\u2022 '+it[0], mL+3, y);
+    doc.setFont('helvetica','bold');
+    var label='\u2022 '+it[0];
+    doc.text(label, mL+3, y);
+    var labelW=doc.getTextWidth(label);
     doc.setFont('helvetica','normal');
-    doc.text(it[1], mL+3+doc.getTextWidth('\u2022 '+it[0]), y);
+    doc.text(it[1], mL+3+labelW+2, y);
     y+=lh;
   });
   y+=3;
