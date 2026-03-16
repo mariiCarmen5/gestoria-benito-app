@@ -255,40 +255,59 @@ function generarPDF(){
   doc.setTextColor(30,30,30);
 
   // Helper para párrafos con spans bold/normal
-  const spaceW = () => { doc.setFont("helvetica","normal"); return doc.getTextWidth(" "); };
+  function getWordWidth(tok){
+    doc.setFont("helvetica", tok.bold?"bold":"normal");
+    return doc.getTextWidth(tok.text);
+  }
+  function getNormalSpaceW(){ doc.setFont("helvetica","normal"); return doc.getTextWidth(" "); }
 
   function writeParagraph(parts, yPos){
     const lineH = 6.5;
+    // Tokenize
     let tokens=[];
     parts.forEach(p=>{
       p.text.split(" ").filter(w=>w).forEach(w=>tokens.push({text:w,bold:p.bold}));
     });
-    let line=[], lineW=0;
 
-    function flushLine(ln,py){
-      let cx=margenIzq;
-      ln.forEach((tok,i)=>{
-        doc.setFont("helvetica", tok.bold?"bold":"normal");
-        doc.text(tok.text, cx, py);
-        cx+=doc.getTextWidth(tok.text);
-        if(i<ln.length-1) cx+=spaceW();
-      });
-      return py+lineH;
-    }
+    // Build lines
+    let lines=[];
+    let line=[], lineW=0;
+    const baseSpW = getNormalSpaceW();
 
     tokens.forEach(tok=>{
-      doc.setFont("helvetica", tok.bold?"bold":"normal");
-      const tw=doc.getTextWidth(tok.text);
-      const needed=line.length>0 ? lineW+spaceW()+tw : tw;
+      const tw=getWordWidth(tok);
+      const needed=line.length>0 ? lineW+baseSpW+tw : tw;
       if(needed>anchoTexto){
-        yPos=flushLine(line,yPos);
+        lines.push({words:line, width:lineW});
         line=[tok]; lineW=tw;
       } else {
-        if(line.length>0) lineW+=spaceW();
+        if(line.length>0) lineW+=baseSpW;
         line.push(tok); lineW+=tw;
       }
     });
-    if(line.length>0) yPos=flushLine(line,yPos);
+    if(line.length>0) lines.push({words:line, width:lineW, last:true});
+
+    // Render lines with justification
+    lines.forEach((ln, idx)=>{
+      const isLast = ln.last || idx===lines.length-1;
+      const wordsW = ln.words.reduce((sum,tok)=>sum+getWordWidth(tok),0);
+
+      let spaceExtra = baseSpW;
+      if(!isLast && ln.words.length>1){
+        // distribute remaining space evenly between words
+        const totalSpace = anchoTexto - wordsW;
+        spaceExtra = totalSpace / (ln.words.length-1);
+      }
+
+      let cx=margenIzq;
+      ln.words.forEach((tok,i)=>{
+        doc.setFont("helvetica", tok.bold?"bold":"normal");
+        doc.text(tok.text, cx, yPos);
+        cx+=getWordWidth(tok);
+        if(i<ln.words.length-1) cx+=spaceExtra;
+      });
+      yPos+=lineH;
+    });
     return yPos+3;
   }
 
