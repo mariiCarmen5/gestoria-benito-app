@@ -325,55 +325,123 @@ function parseFecha(val){
 }
 
 function updateMandatoPreview(){
-  var n1=gm('m-nombre1'), dni1=gm('m-dni1').toUpperCase();
-  var n2=gm('m-nombre2'), dni2=gm('m-dni2').toUpperCase();
-  var rep=gm('m-rep'), cifnif=gm('m-cifnif').toUpperCase();
-  var loc=gm('m-localidad'), cal=gm('m-calle'), num=gm('m-num'), cp=gm('m-cp');
-  var a1=gm('m-asunto1'), a2=gm('m-asunto2');
-  var lugar=gm('m-lugar');
+  var n1=gm('m-nombre1').toUpperCase(), dni1=gm('m-dni1').toUpperCase();
+  var n2=gm('m-nombre2').toUpperCase(), dni2=gm('m-dni2').toUpperCase();
+  var rep=gm('m-rep').toUpperCase(), cifnif=gm('m-cifnif').toUpperCase();
+  var loc=gm('m-localidad').toUpperCase(), cal=gm('m-calle').toUpperCase();
+  var num=gm('m-num').toUpperCase(), cp=gm('m-cp').toUpperCase();
+  var a1=gm('m-asunto1').toUpperCase(), a2=gm('m-asunto2').toUpperCase();
+  var lugar=gm('m-lugar').toUpperCase();
   var fd=parseFecha(document.getElementById('m-fecha').value);
+  var mesNombres=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var fechaStr='';
+  if(document.getElementById('m-fecha').value){
+    var p=document.getElementById('m-fecha').value.split('-');
+    fechaStr=parseInt(p[2])+' de '+mesNombres[parseInt(p[1])-1]+' de '+p[0];
+  }
 
-  function V(v,fb){ return v?'<strong>'+v+'</strong>':ph(fb); }
-  function VU(v,fb){ return v?'<strong>'+v.toUpperCase()+'</strong>':ph(fb); }
+  // Val con línea subrayada (igual que en PDF), en normal sin negrita
+  function V(v, fb){
+    if(v) return '<span style="text-decoration:underline;font-weight:normal">'+v+'</span>';
+    return '<span style="display:inline-block;min-width:60px;border-bottom:1px solid #333;color:#bbb;font-size:0.85em">'+fb+'</span>';
+  }
+  // Val corto (DNI, nº, CP)
+  function VS(v, fb){
+    if(v) return '<span style="text-decoration:underline;font-weight:normal">'+v+'</span>';
+    return '<span style="display:inline-block;min-width:30px;border-bottom:1px solid #333;color:#bbb;font-size:0.85em">'+fb+'</span>';
+  }
+  // Texto fijo subrayado
+  function U(t){ return '<u>'+t+'</u>'; }
+
+  var sz='7.5px';   // fuente base pequeña igual que PDF
+  var szL='6.5px';  // párrafos legales
 
   var o='';
-  o+='<div style="text-align:center;margin-bottom:18px">';
-  o+='<img src="'+MANDATO_HDR_IMG+'" style="height:55px"/></div>';
 
-  // Bloque 1: mandante
-  o+='<p style="margin:0 0 6px">D./ña. '+V(n1,'nombre mandante')+' con DNI '+VU(dni1,'DNI')+'</p>';
-  o+='<p style="margin:0 0 6px">y D./ña. '+V(n2||'','___')+' con DNI '+VU(dni2||'','___')+', que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representación de '+V(rep,'nombre/empresa representada')+' con DNI/CIF nº '+VU(cifnif,'DNI/CIF')+'</p>';
-  o+='<p style="margin:0 0 6px">y domicilio a efectos de notificaciones en '+V(loc,'localidad')+', calle '+V(cal,'calle')+' nº '+V(num,'nº')+' C.P. '+V(cp,'C.P.')+', en concepto de <strong>MANDANTE,</strong> dice y otorga:</p>';
+  // ── Contenedor página A4 con ratio ──────────────────────────────────────
+  o+='<div style="width:100%;aspect-ratio:210/297;position:relative;background:#fff;'+
+     'font-family:Arial,Helvetica,sans-serif;font-size:'+sz+';line-height:1.45;color:#111;'+
+     'box-shadow:0 4px 40px rgba(0,0,0,.14);border-radius:3px;overflow:hidden;">';
 
-  // Bloque 2: texto fijo gestoria
-  o+='<p style="margin:8px 0 6px;text-align:justify">Que por el presente documento confiere, con <strong>carácter específico</strong>, <strong>MANDATO CON REPRESENTACIÓN</strong> a favor de, el/los Gestor/es Administrativo/s en ejercicio, D./ña <u>MARIA DEL CARMEN BENITO REYES</u>, con DNI <u>43234774H</u>, número de colegiado <u>5.18</u>, y D./ña&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;, con DNI&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; número de colegiado&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; y D./ña&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;,</p>';
-  o+='<p style="margin:0 0 6px;text-align:justify">todos ellos pertenecientes al Colegio Oficial de Gestores Administrativos de <u>BALEARES</u>, y al despacho profesional</p>';
-  o+='<p style="margin:0 0 6px;text-align:justify"><u>MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO</u>, con domicilio en <u>PALMA</u>, calle <u>C/ FLUVIA</u> nº <u>1 - BJ DR</u> C.P. <u>07009</u>, en concepto de <strong>MANDATARIO/S,</strong> para su actuación ante todos los órganos y entidades de la Administración del Estado, Autonómica, Provincial y Local que resulten competentes, y específicamente ante la Dirección General de Tráfico del Ministerio del Interior del Gobierno de España, para que promueva, solicite y realice todos los trámites necesarios en relación con el siguiente <strong>ASUNTO:</strong></p>';
+  // ── Cabecera del Consejo General ──────────────────────────────────────────
+  o+='<div style="display:flex;justify-content:center;padding:3% 0 2%">';
+  o+='<img src="'+MANDATO_HDR_IMG+'" style="height:7%;max-height:42px"/></div>';
 
-  // Asuntos
-  o+='<p style="margin:6px 0 2px">• '+(a1?'<strong>'+a1+'</strong>':ph('Asunto 1'))+'</p>';
-  o+='<p style="margin:0 0 6px">• '+(a2?'<strong>'+a2+'</strong>':ph('Asunto 2 (opcional)'))+'</p>';
+  // ── Zona de texto ─────────────────────────────────────────────────────────
+  o+='<div style="padding:0 7% 5%;font-size:'+sz+'">';
 
-  // Párrafos legales
-  var plegales=[
-    'El presente mandato, que se regirá por los artículos 1709 a 1739 del Código Civil, se confiere al amparo del artículo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, y del artículo 1 del Estatuto Orgánico de la Profesión de Gestor Administrativo, aprobado por Decreto 424/1963.',
-    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendrá su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocación al mandatario/s, pudiendo ser su revocación parcial sobre alguno de ellos, quedando en todos los términos vigente sobre aquel/aquellos mandatario/s a quién/es no se le haya comunicado la revocación. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocación. En caso de fallecimiento, jubilación, o cese de negocio del mandatario/s, o cualquier otra causa que impida la terminación del mandato, el mandante autoriza de forma expresa que el trámite encomendado sea finalizado por el gestor/es administrativo/s que le/s sustituya/n oficialmente.',
-    'El mandante declara bajo su responsabilidad de conformidad con el artículo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentación que así lo acredita, que es auténtica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia, se compromete a ponerla a disposición de la Administración cuando le sea requerida, y a mantener el cumplimiento de las anteriores obligaciones durante el período de tiempo inherente al trámite conferido.',
-    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que serán responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de España, con el único objeto y plazo de posibilitar la prestación de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del trámite encomendado. No obstante, lo anterior, el mandatario se reserva el derecho de custodia y conservación de los datos personales recabados con fines de cumplimiento de obligaciones legales exigidas por la normativa tributaria, laboral, civil o mercantil, así como para la atención o emprendimiento de reclamaciones y/o acciones judiciales. El mandante tendrá derecho a la portabilidad de sus datos, a su acceso, rectificación, supresión, limitación, y oposición, dirigiéndose al Consejo General de Colegios de Gestores Administrativos de España en la dirección electrónica consejo@consejogestores.net, o por correo postal a la calle Mayor nº 58, 28013 de Madrid, así como en la dirección postal del Mandatario, donde podrá ampliar la información sobre sus derechos y ejercer los mismos, como a interponer las reclamaciones que estime oportunas ante la Agencia Española de Protección de Datos, o su equivalente en su país de residencia como Autoridad de Control, en los términos previstos en la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales, y el Reglamento (UE) 2016/679 del Parlamento Europeo y del Consejo de 27 de abril de 2016. Pudiendo ampliar la información sobre el tratamiento de sus datos en la dirección www.consejogestores.org (política de privacidad).'
+  // Línea 1: D./ña [n1] con DNI [dni1]
+  o+='<p style="margin:0 0 2px">D./\u00f1a. '+V(n1,'nombre mandante')+
+     ' con DNI '+VS(dni1,'DNI')+'</p>';
+
+  // Línea 2: y D./ña [n2] con DNI [dni2], que declara...
+  o+='<p style="margin:0 0 2px;text-align:justify">'+
+     'y D./\u00f1a. '+V(n2,'___')+' con DNI '+VS(dni2,'___')+
+     ', que declara/declaran tener poder suficiente para actuar en su propio nombre y/o en representaci\u00f3n de '+
+     V(rep,'nombre/empresa representada')+' con DNI/CIF n\u00ba '+VS(cifnif,'DNI/CIF')+'</p>';
+
+  // Línea domicilio
+  o+='<p style="margin:0 0 2px;text-align:justify">'+
+     'y domicilio a efectos de notificaciones en '+V(loc,'localidad')+', calle '+
+     V(cal,'calle')+' n\u00ba '+VS(num,'n\u00ba')+' C.P. '+VS(cp,'C.P.')+
+     ', en concepto de <strong>MANDANTE,</strong> dice y otorga:</p>';
+
+  // Párrafo gestoria
+  o+='<p style="margin:3px 0 2px;text-align:justify">'+
+     'Que por el presente documento confiere, con <strong>car\u00e1cter espec\u00edfico</strong>, '+
+     '<strong>MANDATO CON REPRESENTACI\u00d3N</strong> a favor de, el/los Gestor/es Administrativo/s '+
+     'en ejercicio, D./\u00f1a '+U('MARIA DEL CARMEN BENITO REYES')+', con DNI '+U('43234774H')+
+     ', n\u00famero de colegiado '+U('5.18')+
+     ', todos ellos pertenecientes al Colegio Oficial de Gestores Administrativos de '+U('BALEARES')+
+     ', y al despacho profesional '+U('MARIA DEL CARMEN BENITO REYES - GESTORIA BENITO')+
+     ', con domicilio en '+U('PALMA')+', calle '+U('C/ FLUVIA')+' n\u00ba '+U('1 - BJ DR')+
+     ' C.P. '+U('07009')+', en concepto de <strong>MANDATARIO/S,</strong> para su actuaci\u00f3n '+
+     'ante todos los \u00f3rganos y entidades de la Administraci\u00f3n del Estado, Auton\u00f3mica, '+
+     'Provincial y Local que resulten competentes, y espec\u00edficamente ante la Direcci\u00f3n '+
+     'General de Tr\u00e1fico del Ministerio del Interior del Gobierno de Espa\u00f1a, para que promueva, '+
+     'solicite y realice todos los tr\u00e1mites necesarios en relaci\u00f3n con el siguiente <strong>ASUNTO:</strong></p>';
+
+  // Asuntos con línea
+  o+='<p style="margin:3px 0 1px">\u2022 '+
+     (a1?'<span style="text-decoration:underline">'+a1+'</span>':
+         '<span style="display:inline-block;width:80%;border-bottom:1px solid #999">&nbsp;</span>')+
+     '</p>';
+  o+='<p style="margin:0 0 3px">\u2022 '+
+     (a2?'<span style="text-decoration:underline">'+a2+'</span>':
+         '<span style="display:inline-block;width:80%;border-bottom:1px solid #999">&nbsp;</span>')+
+     '</p>';
+
+  // Párrafos legales en fuente pequeña
+  var legales=[
+    'El presente mandato, que se regir\u00e1 por los art\u00edculos 1709 a 1739 del C\u00f3digo Civil, se confiere al amparo del art\u00edculo 5 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Com\u00fan de las Administraciones P\u00fablicas, y del art\u00edculo 1 del Estatuto Org\u00e1nico de la Profesi\u00f3n de Gestor Administrativo, aprobado por Decreto 424/1963.',
+    'El mandante autoriza al mandatario/s para que nombre/n sustituto/s, en caso de necesidad justificada, a favor de un/os Gestor/es Administrativo/s colegiado/s ejerciente/s. El presente mandato mantendr\u00e1 su vigencia mientras no sea expresamente revocado por el mandante y comunicado fehacientemente su revocaci\u00f3n al mandatario/s, pudiendo ser su revocaci\u00f3n parcial sobre alguno de ellos, quedando en todos los t\u00e9rminos vigente sobre aquel/aquellos mandatario/s a qui\u00e9n/es no se le haya comunicado la revocaci\u00f3n. El mandatario/s a los que se les revoque el presente mandato quedan obligados a devolver el mismo al Mandante en el mismo momento en el que se le comunique la revocaci\u00f3n.',
+    'El mandante declara bajo su responsabilidad de conformidad con el art\u00edculo 69 de la Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Com\u00fan de las Administraciones P\u00fablicas, que cumple con los requisitos establecidos en la normativa vigente para obtener el reconocimiento de un derecho o facultad o para su ejercicio, que dispone de la documentaci\u00f3n que as\u00ed lo acredita, que es aut\u00e9ntica y su contenido enteramente correcto, y que entrega al gestor Administrativo, el cual se responsabiliza de su custodia.',
+    'El mandante declara, que conoce y consiente que los datos que suministra pueden incorporarse a ficheros automatizados de los que ser\u00e1n responsables el Gestor/es Administrativo/s al que se le otorga el mandato, el Colegio Oficial de Gestores Administrativos citado, y el Consejo General de Colegios de Gestores Administrativos de Espa\u00f1a, con el \u00fanico objeto y plazo de posibilitar la prestaci\u00f3n de los servicios profesionales objeto del presente mandato y el cumplimiento por estos de las obligaciones derivadas del tr\u00e1mite encomendado. Pudiendo ampliar la informaci\u00f3n sobre el tratamiento de sus datos en la direcci\u00f3n www.consejogestores.org (pol\u00edtica de privacidad).'
   ];
-  plegales.forEach(function(p){ o+='<p style="margin:8px 0;text-align:justify;font-size:9.5px">'+p+'</p>'; });
+  legales.forEach(function(p){
+    o+='<p style="margin:2px 0;text-align:justify;font-size:'+szL+'">'+p+'</p>';
+  });
 
   // Firma mandante
-  o+='<p style="margin:14px 0 4px;text-align:center">En '+V(lugar,'___')+' a <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong></p>';
-  o+='<p style="text-align:center;font-weight:bold;margin:0 0 30px">EL MANDANTE</p>';
+  o+='<p style="margin:4px 0 1px;text-align:center;font-size:'+sz+'">En '+
+     (lugar||'________________')+' a '+(fechaStr||'___ de ____________ de ____')+'</p>';
+  o+='<p style="text-align:center;font-weight:bold;margin:0 0 8px;font-size:'+sz+'">EL MANDANTE</p>';
 
   // Último párrafo
-  o+='<p style="margin:0 0 8px;text-align:justify;font-size:9.5px">El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la corrección formal de los datos contenidos en los mismos.</p>';
-  o+='<p style="margin:14px 0 4px;text-align:center">En '+V(lugar,'___')+' a <strong>'+fd.d+'</strong> de <strong>'+fd.m+'</strong> de <strong>'+fd.y+'</strong></p>';
-  o+='<p style="text-align:center;font-weight:bold;margin:0">EL MANDATARIO/S</p>';
+  o+='<p style="margin:0 0 2px;text-align:justify;font-size:'+szL+'">'+
+     'El mandatario/s acepta/n el mandato conferido y se obliga a cumplirlo de conformidad con las instrucciones del mandante, y declara/n bajo su responsabilidad que los documentos recibidos del mandante han sido verificados en cuanto a la correcci\u00f3n formal de los datos contenidos en los mismos.</p>';
+
+  // Firma mandatario
+  o+='<p style="margin:3px 0 1px;text-align:center;font-size:'+sz+'">En '+
+     (lugar||'________________')+' a '+(fechaStr||'___ de ____________ de ____')+'</p>';
+  o+='<p style="text-align:center;font-weight:bold;margin:0;font-size:'+sz+'">EL MANDATARIO/S</p>';
+
+  o+='</div>'; // cierra zona texto
+  o+='</div>'; // cierra contenedor A4
 
   document.getElementById('mandato-preview').innerHTML=o;
 }
+
 
 function generarMandatoPDF(){
   var n1=gm('m-nombre1'), dni1=gm('m-dni1').toUpperCase();
@@ -1154,10 +1222,7 @@ document.addEventListener("DOMContentLoaded",function(){
     </aside>
     <main class="main-venia">
       <span class="main-label">Vista previa del documento</span>
-      <div style="width:100%;max-width:700px;background:#fff;border-radius:4px;
-                  box-shadow:0 4px 40px rgba(0,0,0,.14);padding:36px 44px;
-                  font-family:Arial,Helvetica,sans-serif;font-size:10.5px;
-                  line-height:1.55;color:#111;" id="mandato-preview">
+      <div style="width:100%;max-width:560px;" id="mandato-preview">
         <p style="text-align:center;color:#aaa;font-style:italic">
           Completa el formulario para ver la vista previa
         </p>
