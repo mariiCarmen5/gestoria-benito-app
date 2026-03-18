@@ -341,57 +341,39 @@ function updateMandatoPreview(){
     var p=document.getElementById('m-fecha').value.split('-');
     fd={d:String(parseInt(p[2])),m:meses[parseInt(p[1])-1],y:p[0]};
   }
-
-  // Posición de cada campo en % del A4 (210x297mm)
-  function px(mm){ return (mm/210*100).toFixed(3)+'%'; }
-  function py(mm){ return (mm/297*100).toFixed(3)+'%'; }
-
-  function F(val, xmm, ymm, minW){
-    minW = minW||12;
-    var base='position:absolute;left:'+px(xmm)+';top:'+py(ymm-2.5)+
-             ';font-weight:normal;color:#000;white-space:nowrap;font-size:clamp(3.5px,0.95vw,7px);';
-    if(val) return '<span style="'+base+'">'+val+'</span>';
-    return '<span style="'+base+'display:inline-block;min-width:'+px(minW)+
-           ';height:'+py(2)+';background:rgba(255,243,150,0.8);"></span>';
+  // Convierte mm a % del A4. offset Y: -2.65mm (altura fuente 7.5pt) para alinear baseline
+  function F(val,xmm,ymm,minW){
+    var xl=(xmm/210*100).toFixed(3)+'%';
+    var yt=((ymm-2.65)/297*100).toFixed(3)+'%';
+    var s='position:absolute;left:'+xl+';top:'+yt+
+          ';font-weight:normal;color:#000;white-space:nowrap;'+
+          'font-size:clamp(3px,0.94vw,7.5px);font-family:Arial,sans-serif;line-height:1;';
+    if(val) return '<span style="'+s+'">'+val+'</span>';
+    var mw=((minW||10)/210*100).toFixed(3)+'%';
+    return '<span style="'+s+'display:inline-block;min-width:'+mw+';height:0.85%;background:rgba(255,243,150,0.7);"></span>';
   }
-
   var o='<div style="width:100%;aspect-ratio:210/297;position:relative;overflow:hidden;'+
-        'box-shadow:0 4px 30px rgba(0,0,0,.15);border-radius:2px;font-family:Arial,sans-serif;">';
+        'box-shadow:0 4px 30px rgba(0,0,0,.15);border-radius:2px;">';
   o+='<img src="'+MANDATO_BG1+'" style="position:absolute;inset:0;width:100%;height:100%;display:block;"/>';
   o+='<div style="position:absolute;inset:0;">';
-
-  // Línea 1
-  o+=F(n1,    11.9, 33.2, 130);
-  o+=F(dni1, 152.4, 33.2, 50);
-  // Línea 2
-  o+=F(n2,    11.9, 37.9, 90);
-  o+=F(dni2, 108.1, 37.9, 40);
-  // Línea 4: rep
-  o+=F(rep,   10.0, 47.1, 160);
-  // Línea 5
-  o+=F(cifnif, 5.1, 51.8, 14);
-  o+=F(loc,  113.8, 51.8, 70);
-  // Línea 6
-  o+=F(cal,    5.1, 56.6, 90);
-  o+=F(num,  106.2, 56.6, 8);
-  o+=F(cp,   125.5, 56.6, 12);
-  // Asuntos
-  o+=F(a1,    5.1, 91.1, 180);
-  o+=F(a2,    5.1, 97.2, 180);
-  // Firma mandante
-  o+=F(lugar, 44.9, 240.4, 45);
-  o+=F(fd.d,  97.0, 240.4, 8);
-  o+=F(fd.m, 108.4, 240.4, 30);
-  o+=F(fd.y, 135.5, 240.4, 30);
-  // Firma mandatario
-  o+=F(lugar, 44.9, 277.4, 45);
-  o+=F(fd.d,  97.0, 277.4, 8);
-  o+=F(fd.m, 108.4, 277.4, 30);
-  o+=F(fd.y, 135.5, 277.4, 30);
-
+  o+=F(n1,   27.0, 35.5,100); o+=F(dni1, 152.0,35.5,40);
+  o+=F(n2,   31.0, 39.1, 80); o+=F(dni2, 125.5,39.1,30);
+  o+=F(rep,  25.0, 46.4,155);
+  o+=F(cifnif,20.0,50.1, 15); o+=F(loc,  102.5,50.1,75);
+  o+=F(cal,  20.0, 53.7, 75); o+=F(num,  103.5,53.7, 8); o+=F(cp,115.8,53.7,12);
+  o+=F(a1,   20.0,101.6,170);
+  o+=F(a2,   20.0,108.9,170);
+  o+=F(lugar,62.0,232.4, 28); o+=F(fd.d, 95.5,232.4,  6);
+  o+=F(fd.m,102.5,232.4, 15); o+=F(fd.y,120.0,232.4, 28);
+  o+=F(lugar,60.6,268.7, 28); o+=F(fd.d, 93.9,268.7,  6);
+  o+=F(fd.m,101.0,268.7, 15); o+=F(fd.y,118.5,268.7, 28);
   o+='</div></div>';
   document.getElementById('mandato-preview').innerHTML=o;
 }
+
+
+
+
 
 
 
@@ -411,62 +393,39 @@ function generarMandatoPDF(){
     var p=document.getElementById('m-fecha').value.split('-');
     fd={d:String(parseInt(p[2])),m:meses[parseInt(p[1])-1],y:p[0]};
   }
-  if(!n1||!dni1||!rep||!cifnif||!cal||!loc){
-    alert('Por favor completa los campos obligatorios.');return;
-  }
-
-  // Una sola página A4
+  if(!n1||!dni1||!rep||!cifnif||!cal||!loc){alert('Completa los campos obligatorios.');return;}
   var doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});
-
-  // Fondo = PDF original como imagen
   doc.addImage(MANDATO_BG1,'JPEG',0,0,210,297);
-
-  // Fuente igual que el original: 7.5pt, normal, negro
   doc.setFont('helvetica','normal');
   doc.setFontSize(7.5);
   doc.setTextColor(0,0,0);
-
-  // ── Datos en posiciones exactas (mm) ──────────────────────────────────────
-  // Línea 1: D./ña. [n1] ... con DNI [dni1]
-  if(n1)     doc.text(n1,    11.9, 33.2);
-  if(dni1)   doc.text(dni1, 152.4, 33.2);
-
-  // Línea 2: y D./ña. [n2] ... con DNI [dni2]
-  if(n2)     doc.text(n2,    11.9, 37.9);
-  if(dni2)   doc.text(dni2, 108.1, 37.9);
-
-  // Línea 4: de [rep]
-  if(rep)    doc.text(rep,   10.0, 47.1);
-
-  // Línea 5: [cifnif] ... en [loc]
-  if(cifnif) doc.text(cifnif, 5.1, 51.8);
-  if(loc)    doc.text(loc,  113.8, 51.8);
-
-  // Línea 6: [calle] nº [num] C.P. [cp]
-  if(cal)    doc.text(cal,    5.1, 56.6);
-  if(num)    doc.text(num,  106.2, 56.6);
-  if(cp)     doc.text(cp,   125.5, 56.6);
-
-  // Asunto 1
-  if(a1)     doc.text(a1,    5.1, 91.1);
-  // Asunto 2
-  if(a2)     doc.text(a2,    5.1, 97.2);
-
-  // Firma mandante
-  if(lugar)  doc.text(lugar, 44.9, 240.4);
-  if(fd.d)   doc.text(fd.d,  97.0, 240.4);
-  if(fd.m)   doc.text(fd.m, 108.4, 240.4);
-  if(fd.y)   doc.text(fd.y, 135.5, 240.4);
-
-  // Firma mandatario
-  if(lugar)  doc.text(lugar, 44.9, 277.4);
-  if(fd.d)   doc.text(fd.d,  97.0, 277.4);
-  if(fd.m)   doc.text(fd.m, 108.4, 277.4);
-  if(fd.y)   doc.text(fd.y, 135.5, 277.4);
-
-  var nombre_pdf=gm('m-nombre1')?gm('m-nombre1').replace(/\s+/g,'_'):'Mandato';
-  doc.save('Mandato_'+nombre_pdf+'.pdf');
+  if(n1)     doc.text(n1,    27.0,    35.5);
+  if(dni1)   doc.text(dni1,  152.0,  35.5);
+  if(n2)     doc.text(n2,    31.0,    39.1);
+  if(dni2)   doc.text(dni2,  125.5,  39.1);
+  if(rep)    doc.text(rep,   25.0,   46.4);
+  if(cifnif) doc.text(cifnif,20.0,50.1);
+  if(loc)    doc.text(loc,   102.5,   50.1);
+  if(cal)    doc.text(cal,   20.0, 53.7);
+  if(num)    doc.text(num,   103.5,   53.7);
+  if(cp)     doc.text(cp,    115.8,    53.7);
+  if(a1)     doc.text(a1,    20.0,    101.6);
+  if(a2)     doc.text(a2,    20.0,    108.9);
+  if(lugar)  doc.text(lugar, 62.0, 232.4);
+  if(fd.d)   doc.text(fd.d,  95.5,   232.4);
+  if(fd.m)   doc.text(fd.m,  102.5,   232.4);
+  if(fd.y)   doc.text(fd.y,  120.0,  232.4);
+  if(lugar)  doc.text(lugar, 60.6, 268.7);
+  if(fd.d)   doc.text(fd.d,  93.9,   268.7);
+  if(fd.m)   doc.text(fd.m,  101.0,   268.7);
+  if(fd.y)   doc.text(fd.y,  118.5,  268.7);
+  var nombre=gm('m-nombre1')?gm('m-nombre1').replace(/\s+/g,'_'):'Mandato';
+  doc.save('Mandato_'+nombre+'.pdf');
 }
+
+
+
+
 
 
 
