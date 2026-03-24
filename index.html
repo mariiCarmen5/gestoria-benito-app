@@ -1011,20 +1011,17 @@ async function llamarGemini(messages, system){
   var apiKey = getApiKey('gemini');
   if(!apiKey){
     apiKey = prompt(
-      'Introduce tu API Key de Google Gemini\n\n' +
-      'Obtenerla gratis en: aistudio.google.com/apikey\n\n' +
-      '(Se guarda solo en tu navegador)'
+      'Introduce tu API Key de Google Gemini\n\nObtenerla gratis en: aistudio.google.com/apikey\n\n(Se guarda solo en tu navegador)'
     );
     if(!apiKey) throw new Error('API Key de Gemini no proporcionada.');
     apiKey = apiKey.trim();
     setApiKey('gemini', apiKey);
   }
 
-  // Nombres correctos de modelos Gemini en la API v1beta
-  // Usar v1 (estable) en vez de v1beta para modelos flash
   var model = localStorage.getItem('gb_gemini_model') || 'gemini-1.5-flash';
 
-  // Convertir mensajes al formato Gemini (contents)
+  // Convertir mensajes al formato Gemini
+  // Si hay system prompt, lo añadimos al inicio del primer mensaje de usuario
   var contents = [];
   messages.forEach(function(m){
     var role = m.role === 'assistant' ? 'model' : 'user';
@@ -1042,11 +1039,17 @@ async function llamarGemini(messages, system){
     if(parts.length) contents.push({role: role, parts: parts});
   });
 
-  // Asegurar que el primer mensaje es siempre 'user'
-  if(contents.length && contents[0].role === 'model'){
-    contents.shift();
+  // Si hay system, inyectarlo al inicio del primer mensaje user
+  if(system && contents.length){
+    var firstUser = contents.find(function(c){ return c.role === 'user'; });
+    if(firstUser){
+      firstUser.parts.unshift({text: '[INSTRUCCIONES DEL SISTEMA]\n'+system+'\n[FIN INSTRUCCIONES]\n\n'});
+    }
   }
-  // Asegurar alternancia user/model (Gemini lo requiere)
+
+  // Asegurar que empieza por 'user' y que se alternan user/model
+  if(contents.length && contents[0].role === 'model') contents.shift();
+
   var contentsClean = [];
   var lastRole = null;
   contents.forEach(function(c){
@@ -1054,23 +1057,20 @@ async function llamarGemini(messages, system){
       contentsClean.push(c);
       lastRole = c.role;
     } else {
-      // Fusionar con el anterior
       var prev = contentsClean[contentsClean.length-1];
       prev.parts = prev.parts.concat(c.parts);
     }
   });
 
+  if(!contentsClean.length) throw new Error('No hay contenido para enviar.');
+
   var body = {
     contents: contentsClean,
     generationConfig: {maxOutputTokens: 2048, temperature: 0.3}
   };
-  if(system){
-    body.systemInstruction = {parts:[{text: system}]};
-  }
+  // NO usar systemInstruction — no compatible con todos los modelos
 
-  // URL correcta: usar v1 con el modelo exacto
-  var baseUrl = 'https://generativelanguage.googleapis.com/v1/models/';
-  var url = baseUrl + model + ':generateContent?key=' + apiKey;
+  var url = 'https://generativelanguage.googleapis.com/v1/models/'+model+':generateContent?key='+apiKey;
 
   var resp = await fetch(url, {
     method: 'POST',
@@ -1078,7 +1078,6 @@ async function llamarGemini(messages, system){
     body: JSON.stringify(body)
   });
 
-  // Manejar errores
   var respText = await resp.text();
   var respData;
   try { respData = JSON.parse(respText); } catch(ex){ respData = {}; }
@@ -1086,9 +1085,9 @@ async function llamarGemini(messages, system){
   if(!resp.ok){
     var errMsg = (respData.error && respData.error.message) ? respData.error.message : 'Error '+resp.status;
 
-    // Modelo no encontrado -> probar fallback
+    // Modelo no disponible → fallback
     if(errMsg.includes('not found') || errMsg.includes('not supported') || resp.status === 404){
-      var fallbacks = ['gemini-1.5-flash-001', 'gemini-1.0-pro', 'gemini-pro'];
+      var fallbacks = ['gemini-1.5-flash-001','gemini-1.0-pro','gemini-pro'];
       var fb = fallbacks.find(function(m){ return m !== model; });
       if(fb){
         localStorage.setItem('gb_gemini_model', fb);
@@ -1096,28 +1095,21 @@ async function llamarGemini(messages, system){
         return await llamarGemini(messages, system);
       }
     }
-
-    // Cuota agotada
-    if(resp.status === 429){
-      throw new Error('Cuota de Gemini agotada. Espera unos minutos o cambia el modelo en Configurar IA.');
-    }
-
-    // API key inválida
-    if(resp.status === 400 && errMsg.toLowerCase().includes('api key') ||
-       resp.status === 403){
+    if(resp.status === 429) throw new Error('Cuota agotada. Espera unos minutos e intenta de nuevo.');
+    if(resp.status === 400 && errMsg.toLowerCase().includes('api key') || resp.status === 403){
       setApiKey('gemini','');
-      throw new Error('API Key de Gemini incorrecta. Pulsa "Configurar IA" para actualizarla.');
+      throw new Error('API Key incorrecta. Pulsa "Configurar IA" para actualizarla.');
     }
-
     throw new Error(errMsg);
   }
 
   try {
     return respData.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
   } catch(ex){
-    throw new Error('Respuesta inesperada de Gemini: '+respText.substring(0,200));
+    throw new Error('Respuesta inesperada: '+respText.substring(0,300));
   }
 }
+
 
 
 // ── ANTHROPIC (Claude) ────────────────────────────────────────────────────────
