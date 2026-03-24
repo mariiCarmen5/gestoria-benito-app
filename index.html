@@ -124,6 +124,15 @@
     .bib-codigo-btn.loaded{border-color:var(--crimson);background:var(--crimson-light);color:var(--crimson);font-weight:600}
     .bib-codigo-btn.loaded::before{content:'✓ ';font-weight:700}
 
+    
+    .web-btn{width:100%;text-align:left;padding:7px 10px;border:1px solid var(--border);
+             border-radius:7px;background:#fff;font-family:'Montserrat',sans-serif;
+             font-size:11px;color:var(--text);cursor:pointer;transition:all .15s;
+             white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .web-btn:hover{border-color:var(--crimson);color:var(--crimson);background:var(--crimson-light)}
+    .web-btn.loaded{border-color:#2d9e5f;color:#2d9e5f;background:#f0faf5;font-weight:600}
+    .web-btn.loaded::before{content:'✓ ';}
+
     </style>
 </head>
 <body>
@@ -1210,6 +1219,109 @@ async function cargarCodigo(btn){
   btn.disabled = false;
 }
 
+
+// ── FUENTES WEB ───────────────────────────────────────────────────────────────
+var iaWebs = []; // {url, nombre, contenido}
+
+async function cargarWeb(btn){
+  var url    = btn.dataset.url;
+  var nombre = btn.dataset.nombre;
+
+  // Toggle: si ya está cargada, desactivar
+  if(btn.classList.contains('loaded')){
+    btn.classList.remove('loaded');
+    iaWebs = iaWebs.filter(function(w){ return w.url !== url; });
+    // También eliminar de iaDocs
+    iaDocs = iaDocs.filter(function(d){ return d.name !== '🌐 '+nombre; });
+    renderDocsList();
+    mostrarMensajeSistema('❌ Fuente "'+nombre+'" desactivada.');
+    return;
+  }
+
+  var loading = document.getElementById('webs-loading');
+  loading.style.display = 'block';
+  btn.disabled = true;
+  mostrarMensajeSistema('⏳ Cargando "'+nombre+'"...');
+
+  try {
+    // Usar allorigins como proxy CORS
+    var proxyUrl = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
+    var resp = await fetch(proxyUrl);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var data = await resp.json();
+    var raw  = data.contents || '';
+
+    // Limpiar HTML: quitar tags, scripts, estilos — dejar solo texto
+    var texto = limpiarHTML(raw);
+
+    // Limitar a 15000 chars para no saturar el contexto
+    if(texto.length > 15000) texto = texto.substring(0, 15000) + '\n[...contenido truncado]';
+
+    var doc = {name: '🌐 '+nombre, content: 'FUENTE WEB: '+nombre+'\nURL: '+url+'\n\n'+texto, type: 'text'};
+    iaDocs.push(doc);
+    iaWebs.push({url: url, nombre: nombre, contenido: texto});
+
+    renderDocsList();
+    btn.classList.add('loaded');
+    mostrarMensajeSistema('✅ "'+nombre+'" cargado ('+Math.round(texto.length/1000)+'KB de texto extraído).');
+
+  } catch(err) {
+    mostrarMensajeSistema('❌ No se pudo cargar "'+nombre+'": '+err.message+'. Algunos sitios bloquean el acceso externo.');
+  }
+
+  loading.style.display = 'none';
+  btn.disabled = false;
+}
+
+function limpiarHTML(html){
+  // Eliminar scripts, styles, comentarios
+  html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+  html = html.replace(/<style[\s\S]*?<\/style>/gi, '');
+  html = html.replace(/<!--[\s\S]*?-->/g, '');
+  html = html.replace(/<nav[\s\S]*?<\/nav>/gi, '');
+  html = html.replace(/<header[\s\S]*?<\/header>/gi, '');
+  html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
+  // Convertir algunas etiquetas a saltos de línea
+  html = html.replace(/<br\s*\/?>/gi, '\n');
+  html = html.replace(/<\/p>/gi, '\n');
+  html = html.replace(/<\/div>/gi, '\n');
+  html = html.replace(/<\/h[1-6]>/gi, '\n');
+  html = html.replace(/<li>/gi, '• ');
+  html = html.replace(/<\/li>/gi, '\n');
+  // Quitar todos los tags restantes
+  html = html.replace(/<[^>]+>/g, '');
+  // Decodificar entidades HTML básicas
+  html = html.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  html = html.replace(/&nbsp;/g,' ').replace(/&apos;/g,"'").replace(/&quot;/g,'"');
+  html = html.replace(/&#(\d+);/g, function(_,n){ return String.fromCharCode(n); });
+  // Limpiar espacios y líneas vacías múltiples
+  html = html.replace(/[ \t]+/g, ' ');
+  html = html.replace(/\n{3,}/g, '\n\n');
+  return html.trim();
+}
+
+async function añadirWebPersonalizada(){
+  var input = document.getElementById('web-url-input');
+  var url   = input.value.trim();
+  if(!url) return;
+  if(!url.startsWith('http')) url = 'https://'+url;
+
+  // Crear botón dinámico
+  var nombre = url.replace(/https?:\/\/(www\.)?/,'').split('/')[0];
+  var btn = document.createElement('button');
+  btn.className = 'web-btn';
+  btn.dataset.url    = url;
+  btn.dataset.nombre = nombre;
+  btn.textContent    = '🌐 '+nombre;
+  btn.onclick = function(){ cargarWeb(btn); };
+
+  document.getElementById('webs-custom').appendChild(btn);
+  input.value = '';
+
+  // Cargar automáticamente
+  await cargarWeb(btn);
+}
+
 document.addEventListener("DOMContentLoaded",function(){
   document.getElementById("btn-goto-venia").addEventListener("click",goToVenia);
   document.getElementById("btn-goto-ia").addEventListener("click",goToIA);
@@ -1624,6 +1736,67 @@ document.addEventListener("DOMContentLoaded",function(){
         </div>
         <div id="bib-loading" style="display:none;text-align:center;padding:8px;font-size:11px;color:var(--text-mid)">
           ⏳ Cargando código...
+        </div>
+      </div>
+
+      <!-- Fuentes Web -->
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+        <h3 style="font-family:'Montserrat',sans-serif;font-size:12px;font-weight:600;
+                   color:var(--text);margin:0 0 6px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--crimson)">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+          </svg>
+          Fuentes Web
+        </h3>
+        <p style="font-size:10px;color:var(--text-mid);margin:0 0 8px">
+          Añade URLs para que la IA consulte su contenido en tiempo real.
+        </p>
+
+        <!-- URLs predefinidas de gestoría -->
+        <div style="margin-bottom:8px">
+          <p style="font-size:10px;font-weight:600;color:var(--text-mid);margin:0 0 5px;text-transform:uppercase;letter-spacing:.05em">Accesos rápidos</p>
+          <div style="display:flex;flex-direction:column;gap:3px" id="webs-rapidas">
+            <button class="web-btn" data-url="https://www.dgt.es/inicio/" data-nombre="DGT" onclick="cargarWeb(this)">
+              🚗 DGT — Dirección General de Tráfico
+            </button>
+            <button class="web-btn" data-url="https://sede.dgt.gob.es/es/tramites-y-multas/" data-nombre="DGT Trámites" onclick="cargarWeb(this)">
+              📋 DGT — Trámites y multas
+            </button>
+            <button class="web-btn" data-url="https://www.agenciatributaria.es/AEAT.internet/inicio.shtml" data-nombre="AEAT" onclick="cargarWeb(this)">
+              💶 Agencia Tributaria (AEAT)
+            </button>
+            <button class="web-btn" data-url="https://www.seg-social.es/wps/portal/wss/internet/Inicio" data-nombre="Seguridad Social" onclick="cargarWeb(this)">
+              👷 Seguridad Social
+            </button>
+            <button class="web-btn" data-url="https://www.caib.es/sites/caib/es/menu.html" data-nombre="CAIB" onclick="cargarWeb(this)">
+              🏝️ Govern de les Illes Balears
+            </button>
+            <button class="web-btn" data-url="https://www.ajuntamentdepalma.cat/" data-nombre="Ajuntament Palma" onclick="cargarWeb(this)">
+              🏛️ Ajuntament de Palma
+            </button>
+          </div>
+        </div>
+
+        <!-- Añadir URL personalizada -->
+        <div>
+          <p style="font-size:10px;font-weight:600;color:var(--text-mid);margin:0 0 5px;text-transform:uppercase;letter-spacing:.05em">Añadir URL</p>
+          <div style="display:flex;gap:6px">
+            <input id="web-url-input" type="url" placeholder="https://..."
+              style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;
+                     font-size:11px;font-family:'Montserrat',sans-serif;color:var(--text);
+                     outline:none;min-width:0"
+              onkeydown="if(event.key==='Enter') añadirWebPersonalizada()"/>
+            <button onclick="añadirWebPersonalizada()"
+              style="padding:7px 12px;background:var(--crimson);color:#fff;border:none;
+                     border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;
+                     font-family:'Montserrat',sans-serif;white-space:nowrap">
+              + Añadir
+            </button>
+          </div>
+          <div id="webs-custom" style="margin-top:6px;display:flex;flex-direction:column;gap:3px"></div>
+        </div>
+        <div id="webs-loading" style="display:none;text-align:center;padding:8px;font-size:11px;color:var(--text-mid)">
+          ⏳ Cargando página...
         </div>
       </div>
 
