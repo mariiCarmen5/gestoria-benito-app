@@ -1020,19 +1020,20 @@ async function llamarGemini(messages, system){
     setApiKey('gemini', apiKey);
   }
 
-  // Convertir mensajes al formato Gemini
+  // Nombres correctos de modelos Gemini en la API v1beta
+  // Usar v1 (estable) en vez de v1beta para modelos flash
+  var model = localStorage.getItem('gb_gemini_model') || 'gemini-1.5-flash';
+
+  // Convertir mensajes al formato Gemini (contents)
   var contents = [];
-  if(system){
-    // Gemini usa system instruction separado
-  }
   messages.forEach(function(m){
     var role = m.role === 'assistant' ? 'model' : 'user';
     var parts = [];
     if(typeof m.content === 'string'){
-      parts.push({text: m.content});
+      if(m.content.trim()) parts.push({text: m.content});
     } else if(Array.isArray(m.content)){
       m.content.forEach(function(c){
-        if(c.type === 'text') parts.push({text: c.text});
+        if(c.type === 'text' && c.text) parts.push({text: c.text});
         else if(c.type === 'document' && c.source && c.source.type === 'base64'){
           parts.push({inlineData:{mimeType: c.source.media_type, data: c.source.data}});
         }
@@ -1041,18 +1042,35 @@ async function llamarGemini(messages, system){
     if(parts.length) contents.push({role: role, parts: parts});
   });
 
+  // Asegurar que el primer mensaje es siempre 'user'
+  if(contents.length && contents[0].role === 'model'){
+    contents.shift();
+  }
+  // Asegurar alternancia user/model (Gemini lo requiere)
+  var contentsClean = [];
+  var lastRole = null;
+  contents.forEach(function(c){
+    if(c.role !== lastRole){
+      contentsClean.push(c);
+      lastRole = c.role;
+    } else {
+      // Fusionar con el anterior
+      var prev = contentsClean[contentsClean.length-1];
+      prev.parts = prev.parts.concat(c.parts);
+    }
+  });
+
   var body = {
-    contents: contents,
-    generationConfig: {maxOutputTokens: 1500, temperature: 0.3}
+    contents: contentsClean,
+    generationConfig: {maxOutputTokens: 2048, temperature: 0.3}
   };
   if(system){
     body.systemInstruction = {parts:[{text: system}]};
   }
 
-  // Modelos en orden de preferencia (el primero disponible en plan gratuito)
-  var modelos = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro'];
-  var model = localStorage.getItem('gb_gemini_model') || 'gemini-1.5-flash';
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+apiKey;
+  // URL correcta: usar v1 con el modelo exacto
+  var baseUrl = 'https://generativelanguage.googleapis.com/v1/models/';
+  var url = baseUrl + model + ':generateContent?key=' + apiKey;
 
   var resp = await fetch(url, {
     method: 'POST',
@@ -1060,39 +1078,47 @@ async function llamarGemini(messages, system){
     body: JSON.stringify(body)
   });
 
-  if(resp.status === 429 || resp.status === 503){
-    // Quota exceeded — probar siguiente modelo
-    var modelos2 = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro', 'gemini-1.0-pro'];
-    var idxActual = modelos2.indexOf(model);
-    var siguiente = modelos2[idxActual+1];
-    if(siguiente){
-      localStorage.setItem('gb_gemini_model', siguiente);
-      mostrarMensajeSistema('⚠️ Cuota agotada en '+model+', probando '+siguiente+'...');
-      return await llamarGemini(messages, system);
-    }
-    throw new Error('Cuota de Gemini agotada en todos los modelos gratuitos. Espera unos minutos o usa Claude.');
-  }
-  if(resp.status === 400 || resp.status === 403){
-    var errData = await resp.json().catch(function(){return {};});
-    var errMsg = errData.error && errData.error.message ? errData.error.message : '';
-    if(errMsg.toLowerCase().includes('api key') || resp.status===403){
-      setApiKey('gemini','');
-      throw new Error('API Key de Gemini incorrecta. Compruébala en Configurar IA.');
-    }
-    throw new Error(errMsg || 'Error '+resp.status);
-  }
+  // Manejar errores
+  var respText = await resp.text();
+  var respData;
+  try { respData = JSON.parse(respText); } catch(ex){ respData = {}; }
+
   if(!resp.ok){
-    var e2 = await resp.json().catch(function(){return {};});
-    throw new Error((e2.error && e2.error.message) ? e2.error.message : 'Error '+resp.status);
+    var errMsg = (respData.error && respData.error.message) ? respData.error.message : 'Error '+resp.status;
+
+    // Modelo no encontrado -> probar fallback
+    if(errMsg.includes('not found') || errMsg.includes('not supported') || resp.status === 404){
+      var fallbacks = ['gemini-1.5-flash-001', 'gemini-1.0-pro', 'gemini-pro'];
+      var fb = fallbacks.find(function(m){ return m !== model; });
+      if(fb){
+        localStorage.setItem('gb_gemini_model', fb);
+        mostrarMensajeSistema('⚠️ Modelo '+model+' no disponible, probando '+fb+'...');
+        return await llamarGemini(messages, system);
+      }
+    }
+
+    // Cuota agotada
+    if(resp.status === 429){
+      throw new Error('Cuota de Gemini agotada. Espera unos minutos o cambia el modelo en Configurar IA.');
+    }
+
+    // API key inválida
+    if(resp.status === 400 && errMsg.toLowerCase().includes('api key') ||
+       resp.status === 403){
+      setApiKey('gemini','');
+      throw new Error('API Key de Gemini incorrecta. Pulsa "Configurar IA" para actualizarla.');
+    }
+
+    throw new Error(errMsg);
   }
 
-  var data = await resp.json();
   try {
-    return data.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
+    return respData.candidates[0].content.parts.map(function(p){return p.text||'';}).join('');
   } catch(ex){
-    throw new Error('Respuesta inesperada de Gemini');
+    throw new Error('Respuesta inesperada de Gemini: '+respText.substring(0,200));
   }
 }
+
 
 // ── ANTHROPIC (Claude) ────────────────────────────────────────────────────────
 async function llamarAnthropic(messages, system){
@@ -1166,9 +1192,10 @@ function mostrarModalConfig(){
     '<p style="font-size:11px;font-weight:600;color:#666;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em">'+
     '🤖 Google Gemini API Key</p>'+
     '<select id="modal-gemini-model" style="width:100%;padding:8px 10px;border:1.5px solid #e4e4e4;border-radius:8px;font-size:11px;font-family:\'Montserrat\',sans-serif;color:#1a1a1a;margin-bottom:8px;outline:none">'+
-      '<option value="gemini-1.5-flash" '+(localStorage.getItem('gb_gemini_model')==='gemini-1.5-flash'||!localStorage.getItem('gb_gemini_model')?'selected':'')+'>gemini-1.5-flash (recomendado, gratuito)</option>'+
+      '<option value="gemini-1.5-flash" '+(localStorage.getItem('gb_gemini_model')==='gemini-1.5-flash'||!localStorage.getItem('gb_gemini_model')?'selected':'')+'>gemini-1.5-flash (gratuito ✅)</option>'+
+      '<option value="gemini-1.5-flash-001" '+(localStorage.getItem('gb_gemini_model')==='gemini-1.5-flash-001'?'selected':'')+'>gemini-1.5-flash-001 (gratuito ✅)</option>'+
       '<option value="gemini-1.5-pro" '+(localStorage.getItem('gb_gemini_model')==='gemini-1.5-pro'?'selected':'')+'>gemini-1.5-pro (más potente)</option>'+
-      '<option value="gemini-2.0-flash" '+(localStorage.getItem('gb_gemini_model')==='gemini-2.0-flash'?'selected':'')+'>gemini-2.0-flash (requiere plan)</option>'+
+      '<option value="gemini-1.0-pro" '+(localStorage.getItem('gb_gemini_model')==='gemini-1.0-pro'?'selected':'')+'>gemini-1.0-pro (compatible)</option>'+
     '</select>'+
     '<input id="modal-key-gemini" type="password" placeholder="AIza..." value="'+(keyGemini||'')+'" '+
     'style="width:100%;padding:10px 12px;border:1.5px solid #e4e4e4;border-radius:8px;'+
@@ -1214,6 +1241,12 @@ function guardarModalConfig(){
   cerrarModalConfig();
   var p = getProveedorIA();
   actualizarIndicadorProveedor();
+  // Limpiar modelos incorrectos guardados
+  var modeloActual = localStorage.getItem('gb_gemini_model');
+  var modelosValidos = ['gemini-1.5-flash','gemini-1.5-flash-001','gemini-1.5-pro','gemini-1.0-pro','gemini-pro'];
+  if(modeloActual && !modelosValidos.includes(modeloActual)){
+    localStorage.setItem('gb_gemini_model','gemini-1.5-flash');
+  }
   mostrarMensajeSistema('✅ Configuración guardada. Proveedor activo: '+(p==='gemini'?'Gemini':'Claude'));
 }
 
