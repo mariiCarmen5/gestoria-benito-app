@@ -115,6 +115,12 @@
     .doc-card-desc{font-family:'Montserrat',sans-serif;font-size:11px;color:var(--text-mid);
                    margin:0;line-height:1.5}
 
+    
+    .web-link-btn{display:block;padding:6px 10px;border:1px solid var(--border);border-radius:7px;
+                  background:#fff;font-family:'Montserrat',sans-serif;font-size:11px;color:var(--text-mid);
+                  text-decoration:none;transition:all .15s;margin-bottom:0}
+    .web-link-btn:hover{border-color:var(--crimson);color:var(--crimson);background:var(--crimson-light)}
+
     </style>
 </head>
 <body>
@@ -1392,12 +1398,21 @@ async function enviarConsulta(){
   quitarTyping();
 
   // Paso 2: construir system prompt con TODO el contexto disponible
+  var sinFuentes = iaDocs.length === 0 && !iaCtxExtra;
+
   var system =
-    'Eres el asistente interno de Gestoría Benito, una gestoría en Palma de Mallorca.\n'+
-    'Responde SIEMPRE basándote en las fuentes cargadas (documentos, BOE, webs).\n'+
-    'Si hay documentos cargados, úsalos como fuente principal y cítalos.\n'+
-    'Si no hay suficiente información en las fuentes, usa tu conocimiento jurídico actualizado sobre normativa española pero indícalo claramente.\n'+
-    'Sé preciso, conciso y práctico. Cita artículos y normativa cuando sea relevante.';
+    'Eres el asistente interno exclusivo de Gestoría Benito (Palma de Mallorca).\n'+
+    'REGLA ABSOLUTA: Solo puedes responder usando ÚNICAMENTE las fuentes cargadas en esta sesión:\n'+
+    '- Documentos PDF subidos por el usuario\n'+
+    '- Códigos jurídicos de la Biblioteca del BOE activados\n'+
+    '- Contenido del BOE/BOIB consultado\n'+
+    '- Páginas web cargadas\n'+
+    'Si la pregunta NO está relacionada con documentación administrativa, gestoría, normativa jurídica española o trámites, responde EXACTAMENTE esto y nada más:\n'+
+    '"Esta consulta está fuera del ámbito de Gestoría Benito. Solo puedo responder preguntas sobre trámites administrativos, normativa jurídica, fiscalidad, tráfico, seguridad social o los documentos que hayas cargado."\n'+
+    'Si la pregunta SÍ es del ámbito pero no tienes fuentes cargadas con esa información, responde EXACTAMENTE:\n'+
+    '"No tengo esa información en las fuentes cargadas actualmente. Activa el código correspondiente en la Biblioteca Jurídica del BOE del panel izquierdo."\n'+
+    'NUNCA respondas preguntas sobre personas famosas, deportes, entretenimiento, historia general, ciencia, tecnología u otros temas no relacionados con gestoría.\n'+
+    'Cuando respondas, cita siempre la fuente exacta.';
 
   if(iaCtxExtra) system+='\n\n'+iaCtxExtra;
 
@@ -2041,12 +2056,26 @@ document.addEventListener("DOMContentLoaded",function(){
         <h3 style="font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--text);margin:0 0 6px">🌐 Fuentes Web</h3>
         <p style="font-size:10px;color:var(--text-mid);margin:0 0 8px">Activa una fuente para incluir su contenido en la consulta.</p>
         <div id="webs-lista">
-          <button class="web-btn" data-url="https://www.dgt.es/inicio/" data-n="DGT" onclick="activarWeb(this)">🚗 DGT — Dirección General de Tráfico</button>
-          <button class="web-btn" data-url="https://sede.dgt.gob.es/es/tramites-y-multas/" data-n="DGT Trámites" onclick="activarWeb(this)">📋 DGT — Trámites y multas</button>
-          <button class="web-btn" data-url="https://www.agenciatributaria.es/AEAT.internet/inicio.shtml" data-n="AEAT" onclick="activarWeb(this)">💶 Agencia Tributaria (AEAT)</button>
-          <button class="web-btn" data-url="https://www.seg-social.es/wps/portal/wss/internet/Inicio" data-n="Seguridad Social" onclick="activarWeb(this)">👷 Seguridad Social</button>
-          <button class="web-btn" data-url="https://www.caib.es/sites/caib/es/menu.html" data-n="CAIB" onclick="activarWeb(this)">🏝️ Govern de les Illes Balears</button>
-          <button class="web-btn" data-url="https://www.ajuntamentdepalma.cat/" data-n="Palma" onclick="activarWeb(this)">🏛️ Ajuntament de Palma</button>
+          <!-- BOE: funciona via allorigins -->
+          <button class="web-btn" data-url="https://www.boe.es/biblioteca_juridica/index.php?tipo=C" data-n="Biblioteca BOE" onclick="activarWeb(this)">📚 Biblioteca Jurídica del BOE</button>
+          <button class="web-btn" data-url="https://www.boe.es/diario_boe/" data-n="Diario BOE" onclick="activarWeb(this)">📋 Diario BOE</button>
+        </div>
+        <!-- Accesos directos (abrir en navegador) -->
+        <div style="margin-top:10px">
+          <p style="font-size:10px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px">
+            Abrir en navegador
+          </p>
+          <p style="font-size:10px;color:var(--text-mid);margin:0 0 8px;line-height:1.5">
+            Estas webs no permiten carga automática. Ábrelas, copia el texto relevante y pégalo en el chat.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <a href="https://www.dgt.es/inicio/" target="_blank" class="web-link-btn">🚗 DGT — Dirección General de Tráfico ↗</a>
+            <a href="https://sede.dgt.gob.es/es/tramites-y-multas/" target="_blank" class="web-link-btn">📋 DGT — Trámites y multas ↗</a>
+            <a href="https://www.agenciatributaria.es" target="_blank" class="web-link-btn">💶 Agencia Tributaria (AEAT) ↗</a>
+            <a href="https://www.seg-social.es" target="_blank" class="web-link-btn">👷 Seguridad Social ↗</a>
+            <a href="https://www.caib.es" target="_blank" class="web-link-btn">🏝️ Govern de les Illes Balears ↗</a>
+            <a href="https://www.ajuntamentdepalma.cat/" target="_blank" class="web-link-btn">🏛️ Ajuntament de Palma ↗</a>
+          </div>
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
           <input id="web-url-input" type="url" placeholder="https://..." style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:11px;font-family:'Montserrat',sans-serif;outline:none;min-width:0" onkeydown="if(event.key==='Enter')añadirWeb()"/>
