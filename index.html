@@ -1030,21 +1030,90 @@ function filtrarBib(q){
 
 function activarCodigo(btn){
   var id=btn.dataset.id, nombre=btn.dataset.n;
+
+  // Toggle off
   if(btn.classList.contains('on')){
     btn.classList.remove('on');
     iaDocs=iaDocs.filter(function(d){return d.name!==nombre;});
-    renderDocs(); sysMsg('❌ "'+nombre+'" desactivado.'); return;
+    renderDocs();
+    sysMsg('❌ "'+nombre+'" desactivado.');
+    return;
   }
-  var texto='CÓDIGO JURÍDICO ACTIVADO: '+nombre+'\n'+
-    'Fuente: Biblioteca Jurídica del BOE\n'+
-    'URL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+id+'\n\n'+
-    'Responde las preguntas del usuario sobre esta normativa con precisión. '+
-    'Si no tienes información actualizada sobre algún artículo concreto, indícalo.';
-  iaDocs.push({name:nombre,content:texto,type:'text'});
-  renderDocs();
-  btn.classList.add('on');
-  sysMsg('✅ "'+nombre+'" activado. Puedes hacer consultas sobre esta normativa.');
+
+  btn.disabled=true;
+  var original=btn.textContent;
+  btn.textContent='⏳ Cargando...';
+  sysMsg('⏳ Obteniendo contenido de "'+nombre+'" desde el BOE...');
+
+  // Intentar obtener el texto completo via tab=2 (HTML con el texto de todas las normas)
+  // URL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id=XXX&modo=2&nota=0&tab=2
+  var urlTexto='https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+encodeURIComponent(id)+'&modo=2&nota=0&tab=2';
+  var proxy='https://api.allorigins.win/get?url='+encodeURIComponent(urlTexto);
+
+  fetch(proxy, {signal: AbortSignal.timeout(15000)})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var raw = d.contents||'';
+      // Limpiar HTML — extraer solo el texto del contenido principal
+      // Quitar menús, cabeceras, listas laterales
+      var texto = raw;
+      // Extraer solo la parte de contenido (entre id="contenedor" o similar)
+      var match = texto.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
+      if(!match) match = texto.match(/<article[\s\S]*?<\/article>/i);
+      if(match) texto=match[0];
+
+      // Limpiar HTML
+      texto=texto.replace(/<script[\s\S]*?<\/script>/gi,'');
+      texto=texto.replace(/<style[\s\S]*?<\/style>/gi,'');
+      texto=texto.replace(/<nav[\s\S]*?<\/nav>/gi,'');
+      texto=texto.replace(/<header[\s\S]*?<\/header>/gi,'');
+      texto=texto.replace(/<br\s*\/?>/gi,'\n');
+      texto=texto.replace(/<\/p>/gi,'\n');
+      texto=texto.replace(/<\/h[1-6]>/gi,'\n');
+      texto=texto.replace(/<li>/gi,'• ');
+      texto=texto.replace(/<\/li>/gi,'\n');
+      texto=texto.replace(/<[^>]+>/g,'');
+      texto=texto.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ');
+      texto=texto.replace(/&#(\d+);/g,function(_,n){return String.fromCharCode(n);});
+      texto=texto.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+
+      var kb=Math.round(texto.length/1024);
+
+      if(texto.length < 200){
+        throw new Error('Contenido insuficiente');
+      }
+
+      // Limitar a 40KB para no saturar el contexto
+      var MAX=40000;
+      var truncado=false;
+      if(texto.length>MAX){ texto=texto.substring(0,MAX); truncado=true; }
+
+      var docTexto='CÓDIGO JURÍDICO: '+nombre+'\nFuente: Biblioteca Jurídica del BOE\n\n'+texto;
+      if(truncado) docTexto+='\n\n[Contenido truncado — '+kb+'KB total]';
+
+      iaDocs.push({name:nombre, content:docTexto, type:'text'});
+      renderDocs();
+      btn.classList.add('on');
+      sysMsg('✅ "'+nombre+'" cargado ('+Math.min(kb,40)+'KB de texto). Puedes hacer preguntas sobre su contenido completo.');
+    })
+    .catch(function(err){
+      // Fallback: activar con conocimiento propio de la IA
+      var fallback='CÓDIGO JURÍDICO ACTIVADO: '+nombre+
+        '\nFuente: Biblioteca Jurídica del BOE'+
+        '\nURL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+id+
+        '\n\nResponde las preguntas del usuario sobre esta normativa con precisión y detalle. '+
+        'Cita los artículos relevantes cuando sea posible.';
+      iaDocs.push({name:nombre, content:fallback, type:'text'});
+      renderDocs();
+      btn.classList.add('on');
+      sysMsg('✅ "'+nombre+'" activado. La IA responderá con su conocimiento de esta normativa.');
+    })
+    .finally(function(){
+      btn.disabled=false;
+      btn.textContent=original;
+    });
 }
+
 
 // ── BOE / BOIB ────────────────────────────────────────────────────────────────
 async function consultarBOE(boletin){
