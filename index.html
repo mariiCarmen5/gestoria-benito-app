@@ -1281,7 +1281,18 @@ async function enviarConsulta(){
   addMsgUser(texto);
 
   // Construir system con contexto de docs y webs
-  var system='Eres el asistente de Gestoría Benito. Respondes consultas sobre documentación administrativa, tráfico, hacienda, seguridad social y normativa vigente en España y Baleares. Eres preciso, conciso y práctico.';
+  var system='Eres el asistente interno de Gestoría Benito.'+
+    ' INSTRUCCIÓN FUNDAMENTAL: Solo puedes responder basándote ESTRICTAMENTE en:'+
+    ' 1) Los documentos PDF que el usuario haya subido en esta sesión.'+
+    ' 2) Los códigos jurídicos activados de la Biblioteca Jurídica del BOE.'+
+    ' 3) El contenido del BOE/BOIB consultado en esta sesión.'+
+    ' 4) Las páginas web cargadas como fuentes en esta sesión.'+
+    ' Si la pregunta NO puede responderse con esas fuentes, responde SIEMPRE:'+
+    ' "No tengo información sobre eso en los documentos cargados. Por favor, activa el código jurídico'+
+    ' correspondiente desde la Biblioteca Jurídica del BOE, sube el documento PDF relevante,'+
+    ' o carga la web con la información que necesitas."'+
+    ' NUNCA uses tu conocimiento general para responder. SOLO usa las fuentes cargadas.'+
+    ' Cuando respondas, cita explícitamente de qué documento o fuente proviene la información.';
   if(iaCtxExtra) system+='\n\n'+iaCtxExtra;
 
   // Contexto de documentos de texto (BOE, web, biblioteca)
