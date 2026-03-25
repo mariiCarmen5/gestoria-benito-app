@@ -1318,7 +1318,48 @@ async function enviarConsulta(){
   try{
     var resp=await llamarIA(apiMsgs,system);
     quitarTyping();
-    addMsgAI(resp);
+
+    // Construir bloque de fuentes consultadas
+    var fuentes = [];
+    iaDocs.forEach(function(d){
+      if(d.type==='pdf'){
+        fuentes.push({label:'📄 '+d.name, url:null});
+      } else if(d.name.startsWith('🌐 ')){
+        // Fuente web — recuperar URL del botón correspondiente
+        var nombre = d.name.replace('🌐 ','');
+        var webBtn = document.querySelector('.web-btn[data-n="'+nombre+'"]');
+        var url = webBtn ? webBtn.dataset.url : null;
+        fuentes.push({label:'🌐 '+nombre, url:url});
+      } else {
+        // Código BOE o biblioteca
+        var bibBtn = document.querySelector('.bib-btn[data-n="'+d.name+'"]');
+        var bibId  = bibBtn ? bibBtn.dataset.id : null;
+        var url    = bibId
+          ? 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+bibId+'&modo=2&nota=0&tab=2'
+          : null;
+        fuentes.push({label:'📚 '+d.name, url:url});
+      }
+    });
+    if(iaCtxExtra) fuentes.push({label:'📋 BOE/BOIB consultado', url:'https://www.boe.es/diario_boe/'});
+
+    // Añadir pie de fuentes a la respuesta
+    var fuentesHTML = '';
+    if(fuentes.length){
+      fuentesHTML = '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);'+
+        'font-size:10px;color:var(--text-mid)">' +
+        '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Fuentes consultadas:</span><br>' +
+        fuentes.map(function(f){
+          if(f.url){
+            return '<a href="'+f.url+'" target="_blank" rel="noopener" '+
+              'style="color:var(--crimson);text-decoration:none;display:inline-block;margin-top:3px">'+
+              '↗ '+f.label+'</a>';
+          }
+          return '<span style="display:inline-block;margin-top:3px">'+f.label+'</span>';
+        }).join('<br>') +
+        '</div>';
+    }
+
+    addMsgAI(resp, fuentesHTML);
     iaHistory.push({role:'assistant',content:resp});
   }catch(err){
     quitarTyping();
@@ -1447,11 +1488,11 @@ function addMsgUser(t){
   c.appendChild(d); c.scrollTop=c.scrollHeight;
 }
 
-function addMsgAI(t){
+function addMsgAI(t, footer){
   var c=document.getElementById('ia-msgs');
   var d=document.createElement('div'); d.className='ia-msg-ai';
   d.innerHTML='<div class="av"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--crimson)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg></div>'+
-    '<div class="bubble">'+fmt(t)+'</div>';
+    '<div class="bubble">'+fmt(t)+(footer||'')+'</div>';
   c.appendChild(d); c.scrollTop=c.scrollHeight;
 }
 
