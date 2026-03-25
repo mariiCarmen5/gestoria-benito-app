@@ -1414,19 +1414,17 @@ async function enviarConsulta(){
   // Paso 2: construir system prompt con TODO el contexto disponible
   var sinFuentes = iaDocs.length === 0 && !iaCtxExtra;
 
+  var tieneFuentes = iaDocs.length > 0 || iaCtxExtra.length > 0;
+
   var system =
     'Eres el asistente interno exclusivo de Gestoría Benito (Palma de Mallorca).\n'+
-    'REGLA ABSOLUTA: Solo puedes responder usando ÚNICAMENTE las fuentes cargadas en esta sesión:\n'+
-    '- Documentos PDF subidos por el usuario\n'+
-    '- Códigos jurídicos de la Biblioteca del BOE activados\n'+
-    '- Contenido del BOE/BOIB consultado\n'+
-    '- Páginas web cargadas\n'+
-    'Si la pregunta NO está relacionada con documentación administrativa, gestoría, normativa jurídica española o trámites, responde EXACTAMENTE esto y nada más:\n'+
-    '"Esta consulta está fuera del ámbito de Gestoría Benito. Solo puedo responder preguntas sobre trámites administrativos, normativa jurídica, fiscalidad, tráfico, seguridad social o los documentos que hayas cargado."\n'+
-    'Si la pregunta SÍ es del ámbito pero no tienes fuentes cargadas con esa información, responde EXACTAMENTE:\n'+
-    '"No tengo esa información en las fuentes cargadas actualmente. Activa el código correspondiente en la Biblioteca Jurídica del BOE del panel izquierdo."\n'+
-    'NUNCA respondas preguntas sobre personas famosas, deportes, entretenimiento, historia general, ciencia, tecnología u otros temas no relacionados con gestoría.\n'+
-    'Cuando respondas, cita siempre la fuente exacta.';
+    'Tu ámbito es: trámites administrativos, normativa jurídica española, fiscalidad, tráfico, seguridad social, extranjería, derecho mercantil y todo lo relacionado con gestoría.\n'+
+    '\nREGLAS:\n'+
+    '1. Si la pregunta es AJENA al ámbito de gestoría (deportes, entretenimiento, cocina, personas famosas, etc.), responde SOLO: "Esta consulta está fuera del ámbito de Gestoría Benito."\n'+
+    '2. Si hay fuentes cargadas (documentos, BOE, normativa), úsalas como fuente principal y cítalas.\n'+
+    '3. Si NO hay fuentes cargadas pero la pregunta SÍ es del ámbito, responde con tu conocimiento jurídico actualizado indicando claramente que es conocimiento general sin fuente cargada.\n'+
+    '4. Cuando respondas, indica siempre de qué fuente proviene la información.\n'+
+    '5. Sé preciso, conciso y práctico. Cita artículos y normativa cuando sea relevante.';
 
   if(iaCtxExtra) system+='\n\n'+iaCtxExtra;
 
@@ -1539,80 +1537,127 @@ var CODIGOS_BOE = [
 async function buscarEnBibliotecaAutomatico(pregunta){
   var q = pregunta.toLowerCase();
 
-  // Detectar qué código es más relevante para esta pregunta
+  // ── 1. Detectar si pide BOE/BOIB del día ─────────────────────────────────
+  var pideBOE  = /\b(boe|boletín oficial del estado|último boe|boe de hoy|boe publicado)\b/.test(q);
+  var pideBOIB = /\b(boib|boletín oficial de (las islas )?baleares|último boib)\b/.test(q);
+
+  if(pideBOE || pideBOIB){
+    var boletin = pideBOIB ? 'BOIB' : 'BOE';
+    // Solo cargar si no está ya en contexto
+    if(!iaCtxExtra.includes('CONTEXTO '+boletin)){
+      sysMsg('🔍 Consultando el '+boletin+' automáticamente...');
+      await consultarBOE(boletin);
+    }
+    return;
+  }
+
+  // ── 2. Detectar si pide búsqueda de normativa concreta ───────────────────
+  var pideBusqueda = /\b(busca|encuentra|hay alguna|existe alguna|normativa sobre|ley sobre|legislación|decreto|real decreto|orden ministerial|circular)\b/.test(q);
+  var temasBusqueda = [
+    {kw:['gasolina','combustible','carburante','hidrocarburos','diesel','gasoil'], term:'combustibles hidrocarburos gasolina'},
+    {kw:['alquiler','arrendamiento','inquilino','arrendatario'], term:'arrendamiento alquiler vivienda'},
+    {kw:['herencia','testamento','sucesión','heredero'], term:'herencia sucesión testamento'},
+    {kw:['pensión','jubilación','retiro'], term:'pensiones jubilación seguridad social'},
+    {kw:['empresa','sociedad','mercantil','sl','sa'], term:'sociedades mercantiles capital'},
+    {kw:['multa','sanción','infracción'], term:'sanciones infracciones administrativas'},
+    {kw:['permiso','licencia','autorización'], term:'permisos autorizaciones administrativas'},
+    {kw:['impuesto','tributo','gravamen','tasa'], term:'impuestos tributos fiscalidad'},
+    {kw:['contrato','acuerdo','convenio'], term:'contratos administrativos laborales'},
+    {kw:['menor','niño','tutor','tutela','guarda','custodia'], term:'menores protección familia'},
+    {kw:['discapacidad','minusvalía','dependencia'], term:'discapacidad dependencia'},
+    {kw:['vivienda','hipoteca','inmueble','propiedad'], term:'vivienda hipoteca propiedad'},
+  ];
+
+  // ── 3. Detectar código jurídico más relevante ─────────────────────────────
   var mejorCodigo = null;
   var maxMatches  = 0;
 
   CODIGOS_BOE.forEach(function(cod){
-    // Contar cuántas keywords coinciden
     var matches = cod.keywords.filter(function(kw){ return q.includes(kw); }).length;
-    if(matches > maxMatches){
-      maxMatches  = matches;
-      mejorCodigo = cod;
-    }
+    if(matches > maxMatches){ maxMatches = matches; mejorCodigo = cod; }
   });
 
-  // Si no hay ninguna coincidencia clara, no cargar nada
-  if(!mejorCodigo || maxMatches === 0) return;
+  // ── 4. Si hay match de código → cargarlo ─────────────────────────────────
+  if(mejorCodigo && maxMatches > 0){
+    var yaExiste = iaDocs.some(function(d){ return d.name === mejorCodigo.n; });
+    if(!yaExiste){
+      sysMsg('🔍 Cargando "'+mejorCodigo.n+'" automáticamente...');
+      var btn = document.querySelector('.bib-btn[data-n="'+mejorCodigo.n+'"]');
+      try {
+        var urlTexto = 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+
+                       encodeURIComponent(mejorCodigo.id)+'&modo=2&nota=0&tab=2';
+        var proxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(urlTexto);
+        var resp  = await fetch(proxy, {signal: AbortSignal.timeout(12000)});
+        var data  = await resp.json();
+        var raw   = data.contents || '';
+        var match = raw.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
+        var texto = match ? match[0] : raw;
+        texto = texto.replace(/<script[\s\S]*?<\/script>/gi,'')
+                     .replace(/<style[\s\S]*?<\/style>/gi,'')
+                     .replace(/<nav[\s\S]*?<\/nav>/gi,'')
+                     .replace(/<[^>]+>/g,' ')
+                     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                     .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'')
+                     .replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+        if(texto.length > 40000) texto = texto.substring(0,40000)+'\n[...truncado]';
+        if(texto.length > 200){
+          iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO: '+mejorCodigo.n+'\nFuente: BOE\n\n'+texto, type:'text'});
+          renderDocs();
+          if(btn) btn.classList.add('on');
+          sysMsg('✅ "'+mejorCodigo.n+'" cargado automáticamente.');
+        }
+      } catch(e){
+        iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO: '+mejorCodigo.n+'\nURL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+mejorCodigo.id, type:'text'});
+        renderDocs();
+        if(btn) btn.classList.add('on');
+      }
+    }
+    return;
+  }
 
-  // Si ya está cargado este código, no volver a cargarlo
-  var yaExiste = iaDocs.some(function(d){ return d.name === mejorCodigo.n; });
-  if(yaExiste) return;
-
-  sysMsg('🔍 Buscando "'+mejorCodigo.n+'" en la Biblioteca Jurídica del BOE...');
-
-  // Marcar visualmente el botón en la lista si existe
-  var btn = document.querySelector('.bib-btn[data-n="'+mejorCodigo.n+'"]');
-
-  try {
-    var urlTexto = 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+
-                   encodeURIComponent(mejorCodigo.id)+'&modo=2&nota=0&tab=2';
-    var proxy    = 'https://api.allorigins.win/get?url='+encodeURIComponent(urlTexto);
-
-    var resp = await fetch(proxy, {signal: AbortSignal.timeout(12000)});
-    var data = await resp.json();
-    var raw  = data.contents || '';
-
-    // Extraer solo la sección de contenido
-    var match = raw.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
-    var texto = match ? match[0] : raw;
-
-    // Limpiar HTML
-    texto = texto.replace(/<script[\s\S]*?<\/script>/gi,'')
-                 .replace(/<style[\s\S]*?<\/style>/gi,'')
-                 .replace(/<nav[\s\S]*?<\/nav>/gi,'')
-                 .replace(/<[^>]+>/g,' ')
-                 .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-                 .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'')
-                 .replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
-
-    if(texto.length < 200) throw new Error('Sin contenido');
-
-    // Limitar a 40KB
-    if(texto.length > 40000) texto = texto.substring(0,40000)+'\n[...truncado]';
-
-    iaDocs.push({
-      name:    mejorCodigo.n,
-      content: 'CÓDIGO JURÍDICO: '+mejorCodigo.n+'\nFuente: Biblioteca Jurídica del BOE\n\n'+texto,
-      type:    'text'
-    });
-    renderDocs();
-    if(btn) btn.classList.add('on');
-    sysMsg('✅ "'+mejorCodigo.n+'" cargado automáticamente como fuente.');
-
-  } catch(err){
-    // Fallback silencioso — la IA responde con su conocimiento
-    sysMsg('ℹ️ Cargando "'+mejorCodigo.n+'" como referencia...');
-    iaDocs.push({
-      name:    mejorCodigo.n,
-      content: 'CÓDIGO JURÍDICO: '+mejorCodigo.n+'\nFuente: Biblioteca Jurídica del BOE\n'+
-               'URL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+mejorCodigo.id,
-      type:    'text'
-    });
-    renderDocs();
-    if(btn) btn.classList.add('on');
+  // ── 5. Si pide búsqueda de tema específico → buscar en API consolidada ────
+  if(pideBusqueda){
+    var termino = null;
+    for(var i=0; i<temasBusqueda.length; i++){
+      if(temasBusqueda[i].kw.some(function(kw){ return q.includes(kw); })){
+        termino = temasBusqueda[i].term; break;
+      }
+    }
+    // Si no hay tema específico, extraer palabras clave de la pregunta
+    if(!termino){
+      var stopwords = ['consulta','busca','dime','hay','si','el','la','los','las','de','del','en','un','una','que','por','para','con','sobre','como','esto','esto'];
+      termino = pregunta.split(/\s+/)
+        .filter(function(w){ return w.length>4 && !stopwords.includes(w.toLowerCase()); })
+        .slice(0,3).join(' ');
+    }
+    if(termino){
+      var yaExiste = iaDocs.some(function(d){ return d.name && d.name.includes(termino.split(' ')[0]); });
+      if(!yaExiste){
+        sysMsg('🔍 Buscando normativa sobre "'+termino+'" en el BOE...');
+        try {
+          var url = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?query='+
+                    encodeURIComponent(termino)+'&limit=5';
+          var proxy2 = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
+          var resp2  = await fetch(proxy2, {signal: AbortSignal.timeout(10000)});
+          var raw2   = await resp2.json();
+          var data2  = JSON.parse(raw2.contents);
+          var normas = data2.data || [];
+          if(normas.length > 0){
+            var resumen = 'NORMATIVA ENCONTRADA sobre "'+termino+'":\n\n'+
+              normas.map(function(n,i){
+                return (i+1)+'. '+n.titulo+(n.fecha_publicacion?' ('+n.fecha_publicacion.substring(0,10)+')':'')+
+                  '\n   ID: '+(n.identificador||'');
+              }).join('\n\n');
+            iaDocs.push({name:'Búsqueda BOE: '+termino, content:resumen, type:'text'});
+            renderDocs();
+            sysMsg('✅ '+normas.length+' normas encontradas sobre "'+termino+'".');
+          }
+        } catch(e){ /* silencioso */ }
+      }
+    }
   }
 }
+
 
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
