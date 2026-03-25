@@ -1275,31 +1275,34 @@ async function enviarConsulta(){
   var texto=input.value.trim(); if(!texto)return;
   input.value=''; input.style.height='auto';
 
-  // Ocultar bienvenida
   var bv=document.getElementById('ia-bienvenida'); if(bv)bv.remove();
-
   addMsgUser(texto);
 
-  // Construir system con contexto de docs y webs
-  var system='Eres el asistente interno de Gestoría Benito.'+
-    ' INSTRUCCIÓN FUNDAMENTAL: Solo puedes responder basándote ESTRICTAMENTE en:'+
-    ' 1) Los documentos PDF que el usuario haya subido en esta sesión.'+
-    ' 2) Los códigos jurídicos activados de la Biblioteca Jurídica del BOE.'+
-    ' 3) El contenido del BOE/BOIB consultado en esta sesión.'+
-    ' 4) Las páginas web cargadas como fuentes en esta sesión.'+
-    ' Si la pregunta NO puede responderse con esas fuentes, responde SIEMPRE:'+
-    ' "No tengo información sobre eso en los documentos cargados. Por favor, activa el código jurídico'+
-    ' correspondiente desde la Biblioteca Jurídica del BOE, sube el documento PDF relevante,'+
-    ' o carga la web con la información que necesitas."'+
-    ' NUNCA uses tu conocimiento general para responder. SOLO usa las fuentes cargadas.'+
-    ' Cuando respondas, cita explícitamente de qué documento o fuente proviene la información.';
+  // Paso 1: buscar automáticamente en la Biblioteca BOE según la pregunta
+  mostrarTyping();
+  try {
+    await buscarEnBibliotecaAutomatico(texto);
+  } catch(e){ /* continuar aunque falle la búsqueda automática */ }
+  quitarTyping();
+
+  // Paso 2: construir system prompt con TODO el contexto disponible
+  var system =
+    'Eres el asistente interno de Gestoría Benito, una gestoría en Palma de Mallorca.\n'+
+    'Responde SIEMPRE basándote en las fuentes cargadas (documentos, BOE, webs).\n'+
+    'Si hay documentos cargados, úsalos como fuente principal y cítalos.\n'+
+    'Si no hay suficiente información en las fuentes, usa tu conocimiento jurídico actualizado sobre normativa española pero indícalo claramente.\n'+
+    'Sé preciso, conciso y práctico. Cita artículos y normativa cuando sea relevante.';
+
   if(iaCtxExtra) system+='\n\n'+iaCtxExtra;
 
-  // Contexto de documentos de texto (BOE, web, biblioteca)
   var textDocs=iaDocs.filter(function(d){return d.type==='text';});
-  if(textDocs.length) system+='\n\nDOCUMENTOS DE CONTEXTO:\n'+textDocs.map(function(d){return '--- '+d.name+' ---\n'+d.content.substring(0,5000);}).join('\n\n');
+  if(textDocs.length){
+    system+='\n\nFUENTES CARGADAS:\n'+
+      textDocs.map(function(d){
+        return '=== '+d.name+' ===\n'+d.content.substring(0,6000);
+      }).join('\n\n');
+  }
 
-  // Construir mensaje con PDFs adjuntos
   var pdfDocs=iaDocs.filter(function(d){return d.type==='pdf';});
   var userContent=[];
   pdfDocs.forEach(function(d){
@@ -1307,9 +1310,8 @@ async function enviarConsulta(){
   });
   userContent.push({type:'text',text:texto});
 
-  iaHistory.push({role:'user',content:pdfDocs.length?userContent:texto});
+  iaHistory.push({role:'user', content:pdfDocs.length?userContent:texto});
 
-  // Historial para la API (últimos 8 mensajes)
   var apiMsgs=iaHistory.slice(-8);
 
   mostrarTyping();
@@ -1323,6 +1325,119 @@ async function enviarConsulta(){
     addMsgAI('❌ Error: '+err.message);
   }
 }
+
+// ── Mapa de palabras clave → códigos BOE ──────────────────────────────────────
+var CODIGOS_BOE = [
+  {id:'016_Trafico_Circulacion_de_Vehiculos_a_Motor_y_Seguridad_Vial', n:'Tráfico y Circulación',
+   keywords:['tráfico','circulación','vehículo','coche','moto','camión','carnet','permiso de conducir','multa','dgt','matrícula','itv','baja de vehículo','transferencia']},
+  {id:'084_Seguridad_Vial', n:'Código de Seguridad Vial',
+   keywords:['seguridad vial','velocidad','alcohol','drogas','cinturón','móvil al volante','puntos','carnet de conducir']},
+  {id:'244_Seguro_de_Automoviles', n:'Seguro del Automóvil',
+   keywords:['seguro','seguro obligatorio','accidente','responsabilidad civil','seguro de coche']},
+  {id:'058_IRPF', n:'IRPF',
+   keywords:['irpf','renta','declaración de la renta','rendimiento del trabajo','retención','modelo 100','deducción fiscal']},
+  {id:'177_Impuesto_sobre_el_Valor_Anadido', n:'IVA',
+   keywords:['iva','impuesto sobre el valor añadido','modelo 303','modelo 390','factura','iva reducido','exento de iva']},
+  {id:'071_Impuesto_sobre_Sociedades', n:'Impuesto sobre Sociedades',
+   keywords:['sociedades','impuesto de sociedades','modelo 200','beneficio empresarial','sl','sa']},
+  {id:'007_Hacienda_Publica', n:'Hacienda Pública',
+   keywords:['hacienda','aeat','agencia tributaria','deuda tributaria','embargo','inspección fiscal','sanciones tributarias']},
+  {id:'023_Estatuto_de_los_Trabajadores', n:'Estatuto de los Trabajadores',
+   keywords:['despido','contrato de trabajo','nómina','horas extras','vacaciones','baja laboral','jornada','salario mínimo','et ','estatuto de los trabajadores']},
+  {id:'037_Seguridad_Social', n:'Seguridad Social',
+   keywords:['seguridad social','cotización','pensión','jubilación','prestación','desempleo','paro','baja por enfermedad','alta en seguridad social']},
+  {id:'170_Trabajadores_Autonomos', n:'Trabajadores Autónomos',
+   keywords:['autónomo','autónomos','reta','cuota de autónomo','alta como autónomo','cese de actividad','tarifa plana autónomo']},
+  {id:'070_Codigo_de_Extranjeria', n:'Código de Extranjería',
+   keywords:['extranjería','nie','permiso de residencia','permiso de trabajo','visa','nacionalidad','reagrupación familiar','extranjero']},
+  {id:'063_Legislacion_de_Sociedades_de_Capital', n:'Sociedades de Capital',
+   keywords:['sl','srl','sa','sociedad limitada','sociedad anónima','constitución de empresa','estatutos sociales','administrador','junta general']},
+  {id:'074_Procedimiento_Administrativo', n:'Procedimiento Administrativo',
+   keywords:['procedimiento administrativo','recurso','reclamación','silencio administrativo','notificación','trámite','solicitud','expediente']},
+  {id:'003_Codigo_Civil', n:'Código Civil',
+   keywords:['código civil','herencia','donación','contrato civil','arrendamiento','compraventa','testamento','sucesión']},
+  {id:'055_Derecho_Civil_de_las_Islas_Baleares', n:'Derecho Civil de Baleares',
+   keywords:['baleares','mallorca','ibiza','menorca','derecho balear','compilació','dret civil balear']},
+];
+
+async function buscarEnBibliotecaAutomatico(pregunta){
+  var q = pregunta.toLowerCase();
+
+  // Detectar qué código es más relevante para esta pregunta
+  var mejorCodigo = null;
+  var maxMatches  = 0;
+
+  CODIGOS_BOE.forEach(function(cod){
+    // Contar cuántas keywords coinciden
+    var matches = cod.keywords.filter(function(kw){ return q.includes(kw); }).length;
+    if(matches > maxMatches){
+      maxMatches  = matches;
+      mejorCodigo = cod;
+    }
+  });
+
+  // Si no hay ninguna coincidencia clara, no cargar nada
+  if(!mejorCodigo || maxMatches === 0) return;
+
+  // Si ya está cargado este código, no volver a cargarlo
+  var yaExiste = iaDocs.some(function(d){ return d.name === mejorCodigo.n; });
+  if(yaExiste) return;
+
+  sysMsg('🔍 Buscando "'+mejorCodigo.n+'" en la Biblioteca Jurídica del BOE...');
+
+  // Marcar visualmente el botón en la lista si existe
+  var btn = document.querySelector('.bib-btn[data-n="'+mejorCodigo.n+'"]');
+
+  try {
+    var urlTexto = 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+
+                   encodeURIComponent(mejorCodigo.id)+'&modo=2&nota=0&tab=2';
+    var proxy    = 'https://api.allorigins.win/get?url='+encodeURIComponent(urlTexto);
+
+    var resp = await fetch(proxy, {signal: AbortSignal.timeout(12000)});
+    var data = await resp.json();
+    var raw  = data.contents || '';
+
+    // Extraer solo la sección de contenido
+    var match = raw.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
+    var texto = match ? match[0] : raw;
+
+    // Limpiar HTML
+    texto = texto.replace(/<script[\s\S]*?<\/script>/gi,'')
+                 .replace(/<style[\s\S]*?<\/style>/gi,'')
+                 .replace(/<nav[\s\S]*?<\/nav>/gi,'')
+                 .replace(/<[^>]+>/g,' ')
+                 .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                 .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'')
+                 .replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+
+    if(texto.length < 200) throw new Error('Sin contenido');
+
+    // Limitar a 40KB
+    if(texto.length > 40000) texto = texto.substring(0,40000)+'\n[...truncado]';
+
+    iaDocs.push({
+      name:    mejorCodigo.n,
+      content: 'CÓDIGO JURÍDICO: '+mejorCodigo.n+'\nFuente: Biblioteca Jurídica del BOE\n\n'+texto,
+      type:    'text'
+    });
+    renderDocs();
+    if(btn) btn.classList.add('on');
+    sysMsg('✅ "'+mejorCodigo.n+'" cargado automáticamente como fuente.');
+
+  } catch(err){
+    // Fallback silencioso — la IA responde con su conocimiento
+    sysMsg('ℹ️ Cargando "'+mejorCodigo.n+'" como referencia...');
+    iaDocs.push({
+      name:    mejorCodigo.n,
+      content: 'CÓDIGO JURÍDICO: '+mejorCodigo.n+'\nFuente: Biblioteca Jurídica del BOE\n'+
+               'URL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+mejorCodigo.id,
+      type:    'text'
+    });
+    renderDocs();
+    if(btn) btn.classList.add('on');
+  }
+}
+
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function addMsgUser(t){
