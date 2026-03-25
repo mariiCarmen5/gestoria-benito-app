@@ -3,106 +3,105 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Gestoria Benito - IA Integral</title>
+  <title>Gestoria Benito - Portal Inteligente</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <style>
-    :root{--crimson:#9D1336;--crimson-dark:#7a0f2a;--crimson-light:rgba(157,19,54,0.08);--text:#1a1a1a;--text-mid:#666;--text-light:#aaa;--border:#e4e4e4;--bg:#f5f4f2;--white:#ffffff;--sidebar-w:320px;}
+    :root{--crimson:#9D1336;--crimson-dark:#7a0f2a;--crimson-light:rgba(157,19,54,0.08);--text:#1a1a1a;--text-mid:#666;--text-light:#aaa;--border:#e4e4e4;--bg:#f5f4f2;--white:#ffffff;--sidebar-w:350px;}
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:"Montserrat",sans-serif; background:var(--bg); color:var(--text); display:flex; height:100vh; overflow:hidden;}
     
-    /* Sidebar */
+    /* Sidebar Estilo Benito */
     .sidebar{width:var(--sidebar-w); background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:30px 20px;}
-    .logo{font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--crimson); margin-bottom:40px; font-weight:600; text-decoration:none; text-align:center;}
-    .nav-item{padding:12px 16px; border-radius:12px; cursor:pointer; margin-bottom:8px; transition:all .2s; color:var(--text-mid); font-size:14px; font-weight:500;}
-    .nav-item:hover{background:var(--crimson-light); color:var(--crimson);}
-    .nav-item.active{background:var(--crimson); color:var(--white);}
+    .logo{font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--crimson); margin-bottom:40px; font-weight:600; text-decoration:none;}
+    .nav-item{padding:12px 16px; border-radius:12px; cursor:pointer; margin-bottom:8px; color:var(--text-mid); font-size:14px; transition: 0.3s;}
+    .nav-item.active{background:var(--crimson); color:white;}
+    .nav-item:hover:not(.active){background:var(--crimson-light); color:var(--crimson);}
 
-    /* Main */
-    .main-content{flex:1; display:flex; flex-direction:column; background:var(--bg);}
-    
+    /* Main Content */
+    .main-content{flex:1; display:flex; flex-direction:column;}
+    .top-bar{padding:15px 30px; background:white; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-mid); display:flex; justify-content:space-between;}
+
     /* Chat Area */
     #chat-box{flex:1; padding:30px; overflow-y:auto; display:flex; flex-direction:column; gap:15px;}
-    .msg{max-width:75%; padding:15px; border-radius:15px; font-size:14px; line-height:1.5; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+    .msg{max-width:80%; padding:15px; border-radius:15px; font-size:14px; line-height:1.5; animation: fadeIn 0.3s ease;}
     .msg-user{align-self:flex-end; background:var(--crimson); color:white; border-bottom-right-radius:2px;}
     .msg-ia{align-self:flex-start; background:white; border:1px solid var(--border); border-bottom-left-radius:2px;}
 
     /* Input Area */
-    .input-container{padding:20px; background:white; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center;}
-    textarea{flex:1; border:1px solid var(--border); border-radius:10px; padding:12px; resize:none; outline:none; font-family:inherit; max-height:100px;}
-    .send-btn{background:var(--crimson); color:white; border:none; padding:12px 20px; border-radius:10px; cursor:pointer; font-weight:600;}
-    
-    .status-bar{font-size:11px; color:var(--text-light); text-align:center; padding:5px; background:var(--white); border-bottom:1px solid var(--border);}
+    .input-container{padding:25px; background:white; border-top:1px solid var(--border); display:flex; gap:12px;}
+    textarea{flex:1; border:1px solid var(--border); border-radius:12px; padding:12px; resize:none; outline:none; font-family:inherit;}
+    .btn-send{background:var(--crimson); color:white; border:none; padding:0 25px; border-radius:12px; cursor:pointer; font-weight:600;}
+
+    @keyframes fadeIn { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);} }
   </style>
 </head>
 <body>
 
 <nav class="sidebar">
     <div class="logo">Gestoria Benito</div>
-    <div class="nav-item active">Consultoría IA Local</div>
-    <div class="nav-item" onclick="window.open('https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id=42&modo=2', '_blank')">Acceso al BOE</div>
-    <div style="margin-top:auto; font-size:11px; color:var(--text-light); border-top:1px solid var(--border); padding-top:20px;">
-        Asistente basado en Gemini 1.5 Flash<br>Gestoría Benito © 2024
-    </div>
+    <div class="nav-item active">IA Consultora</div>
+    <div class="nav-item" onclick="window.open('https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id=42&modo=2', '_blank')">Código de Comercio</div>
+    <div class="nav-item">Novedades BOE/BOIB</div>
+    <div style="margin-top:auto; font-size:10px; color:var(--text-light)">© 2024 Benito Gestoría Inteligente</div>
 </nav>
 
 <main class="main-content">
-    <div class="status-bar">Conectado con Código de Comercio (BOE) • Actualización: Diaria 08:00</div>
-    
+    <div class="top-bar">
+        <span>Estado: Conectado a Gemini 1.5 Flash</span>
+        <span>Actualización BOE: Hoy 08:00 AM</span>
+    </div>
+
     <div id="chat-box">
-        <div class="msg msg-ia">Hola. Soy el asistente inteligente de la Gestoría Benito. Puedo resolver tus dudas sobre el Código de Comercio o procesar archivos que me indiques. ¿En qué te ayudo?</div>
+        <div class="msg msg-ia">Hola. Soy el asistente de Gestoría Benito. He analizado el Código de Comercio y los últimos boletines. ¿En qué puedo ayudarte?</div>
     </div>
 
     <div class="input-container">
-        <textarea id="userInput" rows="1" placeholder="Haz tu pregunta jurídica..."></textarea>
-        <button class="send-btn" onclick="enviarAI()">Consultar</button>
+        <textarea id="userInput" rows="1" placeholder="Escribe tu consulta legal o de gestión..."></textarea>
+        <button class="btn-send" onclick="enviarConsulta()">Consultar</button>
     </div>
 </main>
 
 <script>
-// FUNCIÓN PRINCIPAL DE LA IA
-async function enviarAI() {
+async function enviarConsulta() {
     const input = document.getElementById('userInput');
     const box = document.getElementById('chat-box');
-    const mensaje = input.value.trim();
+    const texto = input.value.trim();
+    
+    if (!texto) return;
 
-    if (!mensaje) return;
-
-    // 1. Gestionar la API Key
-    let key = localStorage.getItem('gemini_api_key');
-    if (!key) {
-        key = prompt("Introduce tu API KEY de Gemini (Google AI Studio):");
-        if (key) localStorage.setItem('gemini_api_key', key.trim());
+    // 1. Manejo de la API Key
+    let apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+        apiKey = prompt("Por favor, introduce tu API KEY de Gemini (Google AI Studio):");
+        if (apiKey) localStorage.setItem('gemini_api_key', apiKey.trim());
         else return;
     }
 
-    // 2. Mostrar mensaje en pantalla
-    box.innerHTML += `<div class="msg msg-user">${mensaje}</div>`;
+    // 2. Mostrar mensaje del usuario
+    box.innerHTML += `<div class="msg msg-user">${texto}</div>`;
     input.value = '';
     box.scrollTop = box.scrollHeight;
 
-    // 3. Configurar la llamada a Gemini
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-
-    const context = "Eres el consultor experto de Gestoria Benito. Tu base de conocimientos principal es el Código de Comercio de España y la normativa del BOE. Responde de forma profesional, clara y precisa. Si no estás seguro de algo, sugiere hablar con María del Carmen Benito.";
+    // 3. Llamada a Gemini (Versión v1 para evitar bloqueos regionales)
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ 
-                    parts: [{ text: "CONTEXTO PARA LA RESPUESTA:\n" + context + "\n\nPREGUNTA DEL USUARIO:\n" + mensaje }] 
-                }],
-                generationConfig: { temperature: 0.2, maxOutputTokens: 1000 }
+                contents: [{
+                    parts: [{ text: "Eres el consultor experto de Gestoria Benito. Responde siempre de forma profesional basándote en la normativa española. Pregunta: " + texto }]
+                }]
             })
         });
 
         const data = await response.json();
-        
+
         if (data.error) {
-            if (data.error.message.includes("API key")) {
-                localStorage.removeItem('gemini_api_key');
-                throw new Error("API Key inválida. Recarga la página e intenta de nuevo.");
+            // Si hay error de localización, limpiamos la clave para reintentar
+            if (data.error.message.includes("location")) {
+                throw new Error("Google bloquea esta API en tu región actual. Intenta usar una conexión distinta o VPN.");
             }
             throw new Error(data.error.message);
         }
@@ -110,18 +109,18 @@ async function enviarAI() {
         const respuesta = data.candidates[0].content.parts[0].text;
         box.innerHTML += `<div class="msg msg-ia">${respuesta}</div>`;
 
-    } catch (err) {
-        box.innerHTML += `<div class="msg msg-ia" style="color:red; border:1px solid red;"><b>Error:</b> ${err.message}</div>`;
+    } catch (e) {
+        box.innerHTML += `<div class="msg msg-ia" style="color:red; border:1px solid red;"><b>Error:</b> ${e.message}</div>`;
     }
-
+    
     box.scrollTop = box.scrollHeight;
 }
 
-// Escuchar tecla Enter
-document.getElementById('userInput').addEventListener('keypress', function (e) {
+// Enviar con Enter
+document.getElementById('userInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        enviarAI();
+        enviarConsulta();
     }
 });
 </script>
