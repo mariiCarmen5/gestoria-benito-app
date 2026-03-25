@@ -755,6 +755,11 @@ function goToIA(){
   document.getElementById('page-home').classList.remove('active');
   document.getElementById('page-ia').classList.add('active');
   actualizarProvInd();
+  // Limpiar modelo deprecado si estaba guardado
+  var mActual = localStorage.getItem('gb_or_model');
+  if(mActual && (mActual.includes('gemini-2.0-flash-exp') || mActual.includes('gemini-flash-1.5'))){
+    localStorage.setItem('gb_or_model','openrouter/free');
+  }
   window.scrollTo(0,0);
 }
 function goHomeIA(){
@@ -783,7 +788,7 @@ function abrirConfigIA(){
   var kOR  = getKey('openrouter');
   var kGem = getKey('gemini');
   var kAnt = getKey('anthropic');
-  var mOR  = localStorage.getItem('gb_or_model') || 'google/gemini-2.0-flash-exp:free';
+  var mOR  = localStorage.getItem('gb_or_model') || 'openrouter/free';
 
   function bs(id,c){ return 'flex:1;padding:9px;border-radius:9px;cursor:pointer;font-size:11px;font-weight:600;font-family:\'Montserrat\',sans-serif;border:2px solid '+(p===id?c:'#e4e4e4')+';background:'+(p===id?c+'18':'#fff')+';color:'+(p===id?c:'#888')+';'; }
 
@@ -806,10 +811,11 @@ function abrirConfigIA(){
     '<div style="background:#f0fff6;border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid #b2dfdb">'+
     '<p style="font-size:10px;font-weight:700;color:#27ae60;margin:0 0 6px;text-transform:uppercase">✅ OpenRouter</p>'+
     '<select id="cfg-or-model" style="width:100%;padding:8px;border:1.5px solid #e4e4e4;border-radius:8px;font-size:11px;margin-bottom:7px;outline:none">'+
-      '<option value="google/gemini-2.0-flash-exp:free" '+(mOR==='google/gemini-2.0-flash-exp:free'?'selected':'')+'>Gemini 2.0 Flash ⭐ (gratis)</option>'+
-      '<option value="google/gemini-flash-1.5:free" '+(mOR==='google/gemini-flash-1.5:free'?'selected':'')+'>Gemini 1.5 Flash (gratis)</option>'+
-      '<option value="meta-llama/llama-3.1-8b-instruct:free" '+(mOR==='meta-llama/llama-3.1-8b-instruct:free'?'selected':'')+'>Llama 3.1 8B (gratis)</option>'+
-      '<option value="mistralai/mistral-7b-instruct:free" '+(mOR==='mistralai/mistral-7b-instruct:free'?'selected':'')+'>Mistral 7B (gratis)</option>'+
+      '<option value="openrouter/free" '+(mOR==='openrouter/free'||!mOR?'selected':'')+'>🤖 Auto — mejor modelo gratuito disponible ⭐</option>'+
+      '<option value="meta-llama/llama-3.3-70b-instruct:free" '+(mOR==='meta-llama/llama-3.3-70b-instruct:free'?'selected':'')+'>Llama 3.3 70B (gratis, potente)</option>'+
+      '<option value="deepseek/deepseek-r1:free" '+(mOR==='deepseek/deepseek-r1:free'?'selected':'')+'>DeepSeek R1 (gratis, razonamiento)</option>'+
+      '<option value="google/gemma-3-27b-it:free" '+(mOR==='google/gemma-3-27b-it:free'?'selected':'')+'>Google Gemma 3 27B (gratis)</option>'+
+      '<option value="mistralai/mistral-small-3.1-24b-instruct:free" '+(mOR==='mistralai/mistral-small-3.1-24b-instruct:free'?'selected':'')+'>Mistral Small 3.1 (gratis)</option>'+
     '</select>'+
     '<input id="cfg-or-key" type="password" placeholder="sk-or-..." value="'+(kOR||'')+'" style="width:100%;padding:8px 10px;border:1.5px solid #e4e4e4;border-radius:8px;font-size:11px;outline:none;box-sizing:border-box;margin-bottom:5px"/>'+
     '<p style="font-size:10px;color:#555;margin:0">Gratis en <a href="https://openrouter.ai/keys" target="_blank" style="color:#27ae60;font-weight:600">openrouter.ai/keys</a></p>'+
