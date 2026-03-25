@@ -5,126 +5,123 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Gestoria Benito - IA Integral</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <style>
-    :root{--crimson:#9D1336;--crimson-dark:#7a0f2a;--crimson-light:rgba(157,19,54,0.08);--text:#1a1a1a;--text-mid:#666;--text-light:#aaa;--border:#e4e4e4;--bg:#f5f4f2;--white:#ffffff;--sidebar-w:380px;}
+    :root{--crimson:#9D1336;--crimson-dark:#7a0f2a;--crimson-light:rgba(157,19,54,0.08);--text:#1a1a1a;--text-mid:#666;--text-light:#aaa;--border:#e4e4e4;--bg:#f5f4f2;--white:#ffffff;--sidebar-w:320px;}
     *{margin:0;padding:0;box-sizing:border-box;}
-    html,body{height:100%;font-family:"Montserrat",sans-serif;color:var(--text);background:var(--bg);}
+    body{font-family:"Montserrat",sans-serif; background:var(--bg); color:var(--text); display:flex; height:100vh; overflow:hidden;}
     
-    /* Simulación de la estructura que tenías */
-    .header{background:var(--white);padding:20px;text-align:center;border-bottom:1px solid var(--border);}
-    .header h1{font-family:'Cormorant Garamond',serif;color:var(--crimson);font-size:2rem;}
+    /* Sidebar */
+    .sidebar{width:var(--sidebar-w); background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:30px 20px;}
+    .logo{font-family:'Cormorant Garamond',serif; font-size:26px; color:var(--crimson); margin-bottom:40px; font-weight:600; text-decoration:none; text-align:center;}
+    .nav-item{padding:12px 16px; border-radius:12px; cursor:pointer; margin-bottom:8px; transition:all .2s; color:var(--text-mid); font-size:14px; font-weight:500;}
+    .nav-item:hover{background:var(--crimson-light); color:var(--crimson);}
+    .nav-item.active{background:var(--crimson); color:var(--white);}
+
+    /* Main */
+    .main-content{flex:1; display:flex; flex-direction:column; background:var(--bg);}
     
-    .chat-container{max-width:900px;margin:20px auto;background:var(--white);border-radius:15px;height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.05);overflow:hidden;}
-    #ia-chat-box{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:15px;}
+    /* Chat Area */
+    #chat-box{flex:1; padding:30px; overflow-y:auto; display:flex; flex-direction:column; gap:15px;}
+    .msg{max-width:75%; padding:15px; border-radius:15px; font-size:14px; line-height:1.5; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+    .msg-user{align-self:flex-end; background:var(--crimson); color:white; border-bottom-right-radius:2px;}
+    .msg-ia{align-self:flex-start; background:white; border:1px solid var(--border); border-bottom-left-radius:2px;}
+
+    /* Input Area */
+    .input-container{padding:20px; background:white; border-top:1px solid var(--border); display:flex; gap:10px; align-items:center;}
+    textarea{flex:1; border:1px solid var(--border); border-radius:10px; padding:12px; resize:none; outline:none; font-family:inherit; max-height:100px;}
+    .send-btn{background:var(--crimson); color:white; border:none; padding:12px 20px; border-radius:10px; cursor:pointer; font-weight:600;}
     
-    .input-area{padding:20px;border-top:1px solid var(--border);display:flex;gap:10px;background:#fff;}
-    #ia-input{flex:1;padding:12px;border:1.5px solid var(--border);border-radius:10px;outline:none;resize:none;}
-    .btn-send{background:var(--crimson);color:white;border:none;padding:0 20px;border-radius:10px;cursor:pointer;font-weight:600;}
-    .btn-file{background:var(--bg);border:1.5px solid var(--border);padding:10px;border-radius:10px;cursor:pointer;}
-    
-    .msg-user{align-self:flex-end;background:var(--crimson);color:white;padding:10px 15px;border-radius:15px 15px 0 15px;max-width:80%;}
-    .msg-ia{align-self:flex-start;background:var(--bg);color:var(--text);padding:10px 15px;border-radius:15px 15px 15px 0;max-width:80%;border:1px solid var(--border);}
+    .status-bar{font-size:11px; color:var(--text-light); text-align:center; padding:5px; background:var(--white); border-bottom:1px solid var(--border);}
   </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>Gestoria Benito</h1>
-    <p>Consultoría Inteligente - BOE / BOIB / Documentación Local</p>
-</div>
+<nav class="sidebar">
+    <div class="logo">Gestoria Benito</div>
+    <div class="nav-item active">Consultoría IA Local</div>
+    <div class="nav-item" onclick="window.open('https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id=42&modo=2', '_blank')">Acceso al BOE</div>
+    <div style="margin-top:auto; font-size:11px; color:var(--text-light); border-top:1px solid var(--border); padding-top:20px;">
+        Asistente basado en Gemini 1.5 Flash<br>Gestoría Benito © 2024
+    </div>
+</nav>
 
-<div class="chat-container">
-    <div id="ia-chat-box">
-        <div class="msg-ia">Hola, soy tu asistente de Gestoría Benito. ¿En qué puedo ayudarte hoy con la normativa o tus documentos?</div>
-    </div>
+<main class="main-content">
+    <div class="status-bar">Conectado con Código de Comercio (BOE) • Actualización: Diaria 08:00</div>
     
-    <div class="input-area">
-        <input type="file" id="file-upload" style="display:none" accept=".pdf,.txt" onchange="procesarArchivo()">
-        <button class="btn-file" onclick="document.getElementById('file-upload').click()">📎</button>
-        <textarea id="ia-input" rows="1" placeholder="Haz una consulta sobre el BOE o tus archivos..."></textarea>
-        <button class="btn-send" onclick="enviarConsulta()">Enviar</button>
+    <div id="chat-box">
+        <div class="msg msg-ia">Hola. Soy el asistente inteligente de la Gestoría Benito. Puedo resolver tus dudas sobre el Código de Comercio o procesar archivos que me indiques. ¿En qué te ayudo?</div>
     </div>
-</div>
+
+    <div class="input-container">
+        <textarea id="userInput" rows="1" placeholder="Haz tu pregunta jurídica..."></textarea>
+        <button class="send-btn" onclick="enviarAI()">Consultar</button>
+    </div>
+</main>
 
 <script>
-// VARIABLES GLOBALES
-let contextoArchivos = ""; 
+// FUNCIÓN PRINCIPAL DE LA IA
+async function enviarAI() {
+    const input = document.getElementById('userInput');
+    const box = document.getElementById('chat-box');
+    const mensaje = input.value.trim();
 
-// 1. FUNCIÓN PARA LLAMAR A GEMINI
-async function enviarConsulta() {
-    const input = document.getElementById('ia-input');
-    const chatBox = document.getElementById('ia-chat-box');
-    const promptUsuario = input.value.trim();
-    
-    if (!promptUsuario) return;
+    if (!mensaje) return;
 
-    // Obtener API KEY (La pide una vez y la guarda)
-    let apiKey = localStorage.getItem('gemini_api_key');
-    if (!apiKey || apiKey === "null") {
-        apiKey = prompt("Introduce tu API Key de Gemini (Google AI Studio):");
-        localStorage.setItem('gemini_api_key', apiKey);
+    // 1. Gestionar la API Key
+    let key = localStorage.getItem('gemini_api_key');
+    if (!key) {
+        key = prompt("Introduce tu API KEY de Gemini (Google AI Studio):");
+        if (key) localStorage.setItem('gemini_api_key', key.trim());
+        else return;
     }
 
-    // Mostrar mensaje del usuario
-    chatBox.innerHTML += `<div class="msg-user">${promptUsuario}</div>`;
+    // 2. Mostrar mensaje en pantalla
+    box.innerHTML += `<div class="msg msg-user">${mensaje}</div>`;
     input.value = '';
-    chatBox.scrollTop = chatBox.scrollHeight;
+    box.scrollTop = box.scrollHeight;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // 3. Configurar la llamada a Gemini
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
 
-    // Instrucción de sistema para que no se salga de su rol
-    const systemPrompt = `Eres el experto jurídico de Gestoría Benito. 
-    DATOS ACTUALES DE LA WEB/ARCHIVOS: ${contextoArchivos}. 
-    INSTRUCCIÓN: Responde siempre basándote en la normativa española (BOE/BOIB) y en los datos proporcionados. Si no sabes algo, indica que María del Carmen Benito lo revisará personalmente.`;
+    const context = "Eres el consultor experto de Gestoria Benito. Tu base de conocimientos principal es el Código de Comercio de España y la normativa del BOE. Responde de forma profesional, clara y precisa. Si no estás seguro de algo, sugiere hablar con María del Carmen Benito.";
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: promptUsuario }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
+                contents: [{ 
+                    parts: [{ text: "CONTEXTO PARA LA RESPUESTA:\n" + context + "\n\nPREGUNTA DEL USUARIO:\n" + mensaje }] 
+                }],
+                generationConfig: { temperature: 0.2, maxOutputTokens: 1000 }
             })
         });
 
         const data = await response.json();
-        const respuestaIA = data.candidates[0].content.parts[0].text;
-
-        chatBox.innerHTML += `<div class="msg-ia">${respuestaIA}</div>`;
-    } catch (error) {
-        chatBox.innerHTML += `<div class="msg-ia" style="color:red">Error: Asegúrate de que la API Key sea correcta o que tengas conexión.</div>`;
-    }
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-// 2. FUNCIÓN PARA LEER ARCHIVOS (PDF/TXT) SIN SUBIRLOS A NINGÚN SITIO
-async function procesarArchivo() {
-    const file = document.getElementById('file-upload').files[0];
-    if (!file) return;
-
-    const chatBox = document.getElementById('ia-chat-box');
-    chatBox.innerHTML += `<div class="msg-ia"><i>Analizando archivo: ${file.name}...</i></div>`;
-
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        if (file.type === "text/plain") {
-            contextoArchivos += "\nCONTENIDO DE " + file.name + ": " + e.target.result;
-            chatBox.innerHTML += `<div class="msg-ia">✅ Archivo leído. Ya puedes hacerme preguntas sobre él.</div>`;
-        } else {
-            // Aquí podrías añadir lógica para leer PDF más compleja
-            contextoArchivos += "\nEl usuario ha cargado el documento: " + file.name;
-            chatBox.innerHTML += `<div class="msg-ia">✅ Documento recibido. Gemini lo analizará junto a tu pregunta.</div>`;
+        
+        if (data.error) {
+            if (data.error.message.includes("API key")) {
+                localStorage.removeItem('gemini_api_key');
+                throw new Error("API Key inválida. Recarga la página e intenta de nuevo.");
+            }
+            throw new Error(data.error.message);
         }
-    };
-    reader.readAsText(file);
+
+        const respuesta = data.candidates[0].content.parts[0].text;
+        box.innerHTML += `<div class="msg msg-ia">${respuesta}</div>`;
+
+    } catch (err) {
+        box.innerHTML += `<div class="msg msg-ia" style="color:red; border:1px solid red;"><b>Error:</b> ${err.message}</div>`;
+    }
+
+    box.scrollTop = box.scrollHeight;
 }
 
-// Permitir enviar con la tecla Enter
-document.getElementById('ia-input').addEventListener('keypress', function (e) {
+// Escuchar tecla Enter
+document.getElementById('userInput').addEventListener('keypress', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        enviarConsulta();
+        enviarAI();
     }
 });
 </script>
