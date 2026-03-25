@@ -755,10 +755,12 @@ function goToIA(){
   document.getElementById('page-home').classList.remove('active');
   document.getElementById('page-ia').classList.add('active');
   actualizarProvInd();
-  // Limpiar modelo deprecado si estaba guardado
+  // Limpiar CUALQUIER modelo deprecado al cargar
   var mActual = localStorage.getItem('gb_or_model');
-  if(mActual && (mActual.includes('gemini-2.0-flash-exp') || mActual.includes('gemini-flash-1.5'))){
-    localStorage.setItem('gb_or_model','openrouter/free');
+  var DEPRECATED_LIST = ['gemini-2.0-flash-exp','gemini-flash-1.5','llama-3.1-8b','mistral-7b'];
+  if(mActual && DEPRECATED_LIST.some(function(d){return mActual.includes(d);})){
+    localStorage.removeItem('gb_or_model');
+    sysMsg && sysMsg('ℹ️ Modelo anterior no disponible. Cambiado a selección automática.');
   }
   window.scrollTo(0,0);
 }
@@ -874,42 +876,110 @@ async function iaOpenRouter(messages, system){
     if(!key) throw new Error('API Key no proporcionada.');
     setKey('openrouter', key.trim()); key=key.trim();
   }
-  var model = localStorage.getItem('gb_or_model') || 'google/gemini-2.0-flash-exp:free';
+
+  // Lista de modelos gratuitos fiables en marzo 2026
+  // openrouter/free siempre va primero — elige automáticamente el mejor disponible
+  var FALLBACKS = [
+    'openrouter/free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'deepseek/deepseek-r1:free',
+    'google/gemma-3-27b-it:free',
+    'mistralai/mistral-small-3.1-24b-instruct:free',
+    'nousresearch/hermes-3-llama-3.1-405b:free'
+  ];
+
+  // Limpiar modelos deprecados guardados
+  var saved = localStorage.getItem('gb_or_model') || '';
+  var DEPRECATED = ['gemini-2.0-flash-exp','gemini-flash-1.5','llama-3.1-8b','mistral-7b'];
+  if(!saved || DEPRECATED.some(function(d){return saved.includes(d);})){
+    localStorage.removeItem('gb_or_model');
+    saved = '';
+  }
+
+  // Si hay modelo guardado válido, ponerlo primero
+  var preferred = saved || 'openrouter/free';
+  var orden = [preferred].concat(FALLBACKS.filter(function(m){return m!==preferred;}));
+
+  // Construir mensajes
   var msgs = [];
   if(system) msgs.push({role:'system', content:system});
-
-  // Convertir mensajes — los PDFs se pasan como texto del documento
   messages.forEach(function(m){
-    var parts = [];
-    if(typeof m.content==='string'){ parts.push(m.content); }
+    var content = '';
+    if(typeof m.content==='string'){ content=m.content; }
     else if(Array.isArray(m.content)){
-      m.content.forEach(function(c){
-        if(c.type==='text') parts.push(c.text);
-        else if(c.type==='document') parts.push('[Documento PDF: ver contexto del sistema]');
-      });
+      content=m.content.filter(function(c){return c.type==='text';}).map(function(c){return c.text;}).join('\n');
     }
-    msgs.push({role:m.role, content:parts.join('\n')});
+    if(content.trim()) msgs.push({role:m.role, content:content});
   });
 
-  var resp = await fetch('https://openrouter.ai/api/v1/chat/completions',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Authorization':'Bearer '+key,
-      'HTTP-Referer':'https://gestoriabenito.com',
-      'X-Title':'Gestoría Benito'
-    },
-    body:JSON.stringify({model:model, messages:msgs, max_tokens:2048, temperature:0.3})
-  });
-  var data = await resp.json();
-  if(!resp.ok){
-    var em = data.error?data.error.message:'Error '+resp.status;
-    if(resp.status===401){setKey('openrouter',''); throw new Error('API Key incorrecta.');}
-    if(resp.status===429) throw new Error('Límite alcanzado. Espera un momento.');
-    throw new Error(em);
+  var lastError = '';
+
+  // Probar cada modelo UNA VEZ, sin recursión
+  for(var i=0; i<orden.length; i++){
+    var model = orden[i];
+    try {
+      var resp = await fetch('https://openrouter.ai/api/v1/chat/completions',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+key,
+          'HTTP-Referer':'https://gestoriabenito.com',
+          'X-Title':'Gestoría Benito'
+        },
+        body:JSON.stringify({
+          model: model,
+          messages: msgs,
+          max_tokens: 2048,
+          temperature: 0.3
+        })
+      });
+
+      var data = await resp.json();
+
+      if(resp.ok && data.choices && data.choices[0]){
+        // Éxito — guardar este modelo para la próxima vez
+        if(model !== 'openrouter/free') localStorage.setItem('gb_or_model', model);
+        return data.choices[0].message.content || '';
+      }
+
+      var em = data.error ? data.error.message : 'Error '+resp.status;
+
+      // Error de autenticación — no reintentar
+      if(resp.status===401){
+        setKey('openrouter','');
+        throw new Error('API Key incorrecta. Ve a "Configurar IA" para actualizarla.');
+      }
+
+      // Modelo no disponible — probar siguiente
+      if(em.includes('No endpoints') || em.includes('not found') || resp.status===404 || resp.status===503){
+        lastError = em;
+        if(i < orden.length-1){
+          sysMsg('⚠️ Modelo no disponible, probando alternativa '+(i+1)+'/'+orden.length+'...');
+        }
+        continue;
+      }
+
+      // Cuota agotada — probar siguiente
+      if(resp.status===429){
+        lastError = 'Límite alcanzado en '+model;
+        if(i < orden.length-1){
+          sysMsg('⚠️ Límite alcanzado, probando alternativa...');
+        }
+        continue;
+      }
+
+      throw new Error(em);
+
+    } catch(fetchErr){
+      if(fetchErr.message.includes('API Key')) throw fetchErr;
+      lastError = fetchErr.message;
+      if(i < orden.length-1) continue;
+    }
   }
-  return data.choices[0].message.content||'';
+
+  throw new Error('No hay modelos gratuitos disponibles ahora mismo. Intenta de nuevo en unos minutos.\n\nÚltimo error: '+lastError);
 }
+
 
 async function iaGemini(messages, system){
   var key = getKey('gemini');
