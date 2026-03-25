@@ -121,6 +121,20 @@
                   text-decoration:none;transition:all .15s;margin-bottom:0}
     .web-link-btn:hover{border-color:var(--crimson);color:var(--crimson);background:var(--crimson-light)}
 
+    
+    .novedad-btn{padding:4px 8px;border:1.5px solid var(--border);border-radius:20px;background:#fff;
+                 font-family:'Montserrat',sans-serif;font-size:10px;color:var(--text-mid);cursor:pointer;transition:all .15s}
+    .novedad-btn.active,.novedad-btn:hover{background:var(--crimson);border-color:var(--crimson);color:#fff}
+    .boe-result-item{padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+    .boe-result-item:last-child{border-bottom:none}
+    .boe-result-item:hover{background:var(--crimson-light)}
+    .boe-result-item .boe-r-titulo{font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px}
+    .boe-result-item .boe-r-meta{font-size:10px;color:var(--text-mid)}
+    .boe-result-item .boe-r-acciones{display:flex;gap:6px;margin-top:4px}
+    .boe-r-btn{font-size:10px;padding:3px 7px;border-radius:5px;border:1px solid var(--crimson);
+               color:var(--crimson);background:#fff;cursor:pointer;font-family:'Montserrat',sans-serif}
+    .boe-r-btn:hover{background:var(--crimson);color:#fff}
+
     </style>
 </head>
 <body>
@@ -1668,6 +1682,178 @@ function goHomeDocs(){
   window.scrollTo(0,0);
 }
 
+
+// ── BÚSQUEDA BOE AVANZADA ─────────────────────────────────────────────────────
+var boeTopic = 'tráfico vehículos DGT';
+
+function selTopicNovedad(btn){
+  document.querySelectorAll('.novedad-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  boeTopic = btn.dataset.topic;
+}
+
+async function buscarNormativaBOE(){
+  var q = document.getElementById('boe-search-input').value.trim();
+  if(!q) return;
+  var btn = document.getElementById('boe-search-btn');
+  var resultsDiv = document.getElementById('boe-search-results');
+  btn.textContent = '⏳'; btn.disabled = true;
+  resultsDiv.style.display = 'block';
+  resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-mid);text-align:center">Buscando en el BOE...</div>';
+
+  try {
+    var url = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?query='+
+              encodeURIComponent(q)+'&limit=8';
+    var proxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
+    var resp = await fetch(proxy, {signal: AbortSignal.timeout(10000)});
+    var raw  = await resp.json();
+    var data = JSON.parse(raw.contents);
+
+    var normas = data.data || [];
+    if(!normas.length){
+      resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-mid);text-align:center">No se encontraron resultados para "'+q+'"</div>';
+      return;
+    }
+
+    resultsDiv.innerHTML = normas.map(function(n){
+      var titulo  = n.titulo || 'Sin título';
+      var fecha   = n.fecha_publicacion ? n.fecha_publicacion.substring(0,10) : '';
+      var depto   = n.departamento || '';
+      var id      = n.identificador || '';
+      return '<div class="boe-result-item">'+
+        '<div class="boe-r-titulo">'+titulo+'</div>'+
+        '<div class="boe-r-meta">'+depto+(fecha?' · '+fecha:'')+'</div>'+
+        '<div class="boe-r-acciones">'+
+          '<button class="boe-r-btn" onclick="cargarTextoNorma(\''+id+'\',\''+titulo.replace(/'/g,'')+'\')">📥 Cargar texto</button>'+
+          '<a href="https://www.boe.es/buscar/act.php?id='+id+'" target="_blank" class="boe-r-btn" style="text-decoration:none">↗ Ver en BOE</a>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+
+  } catch(err){
+    resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--crimson)">Error: '+err.message+'</div>';
+  }
+  btn.textContent = 'Buscar'; btn.disabled = false;
+}
+
+async function cargarTextoNorma(id, titulo){
+  if(!id){ sysMsg('⚠️ ID de norma no disponible.'); return; }
+
+  // Evitar duplicados
+  if(iaDocs.some(function(d){ return d.name === titulo; })){
+    sysMsg('ℹ️ "'+titulo+'" ya está cargado.');
+    return;
+  }
+
+  sysMsg('⏳ Cargando texto completo de "'+titulo+'"...');
+
+  try {
+    // Primero metadatos
+    var metaUrl = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/'+id+'/metadatos';
+    var metaProxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(metaUrl);
+    var metaResp = await fetch(metaProxy, {signal: AbortSignal.timeout(8000)});
+    var metaRaw  = await metaResp.json();
+    var meta     = JSON.parse(metaRaw.contents);
+
+    // Luego texto
+    var textoUrl = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/'+id+'/texto';
+    var textoProxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(textoUrl);
+    var textoResp  = await fetch(textoProxy, {signal: AbortSignal.timeout(15000)});
+    var textoRaw   = await textoResp.json();
+
+    // El texto viene en XML — extraer contenido de texto
+    var xmlStr = textoRaw.contents || '';
+    var textoLimpio = xmlStr
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+      .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'')
+      .replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+
+    var MAX = 40000;
+    var truncado = textoLimpio.length > MAX;
+    if(truncado) textoLimpio = textoLimpio.substring(0, MAX) + '\n\n[...texto truncado por longitud]';
+
+    var docTexto = 'NORMA BOE: '+titulo+'\n'+
+      'ID: '+id+'\n'+
+      'URL: https://www.boe.es/buscar/act.php?id='+id+'\n\n'+
+      textoLimpio;
+
+    iaDocs.push({name: titulo, content: docTexto, type: 'text'});
+    renderDocs();
+    sysMsg('✅ "'+titulo+'" cargado ('+Math.min(Math.round(textoLimpio.length/1024),40)+'KB). Puedes hacer preguntas sobre su articulado completo.');
+
+  } catch(err){
+    sysMsg('⚠️ No se pudo cargar el texto: '+err.message);
+  }
+}
+
+async function cargarNovedades(){
+  var btn = document.getElementById('btn-novedades');
+  var resultsDiv = document.getElementById('boe-novedades-results');
+  var days = parseInt(document.getElementById('boe-days-select').value);
+
+  btn.textContent = '⏳'; btn.disabled = true;
+  resultsDiv.style.display = 'block';
+  resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-mid);text-align:center">Buscando novedades...</div>';
+
+  // Calcular fechas
+  var hoy   = new Date();
+  var desde = new Date(hoy.getTime() - days*24*60*60*1000);
+  function fmtDate(d){ return d.toISOString().split('T')[0].replace(/-/g,''); }
+
+  try {
+    var url = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?'+
+              'query='+encodeURIComponent(boeTopic)+
+              '&from='+fmtDate(desde)+
+              '&to='+fmtDate(hoy)+
+              '&limit=10';
+    var proxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
+    var resp  = await fetch(proxy, {signal: AbortSignal.timeout(12000)});
+    var raw   = await resp.json();
+    var data  = JSON.parse(raw.contents);
+    var normas = data.data || [];
+
+    if(!normas.length){
+      var labelDays = days===7?'última semana':days===30?'último mes':'últimos 3 meses';
+      resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--text-mid);text-align:center">'+
+        'No hay novedades en la '+labelDays+' para este tema.</div>';
+      return;
+    }
+
+    // Mostrar y añadir al contexto del chat
+    resultsDiv.innerHTML = '<div style="padding:6px 10px;font-size:10px;font-weight:700;color:var(--crimson);border-bottom:1px solid var(--border)">'+
+      normas.length+' novedades encontradas</div>'+
+      normas.map(function(n){
+        var titulo = n.titulo || 'Sin título';
+        var fecha  = n.fecha_publicacion ? n.fecha_publicacion.substring(0,10) : '';
+        var id     = n.identificador || '';
+        return '<div class="boe-result-item">'+
+          '<div class="boe-r-titulo">'+titulo+'</div>'+
+          '<div class="boe-r-meta">'+(fecha?'📅 '+fecha:'')+'</div>'+
+          '<div class="boe-r-acciones">'+
+            '<button class="boe-r-btn" onclick="cargarTextoNorma(\''+id+'\',\''+titulo.replace(/'/g,'')+'\')">📥 Cargar</button>'+
+            '<a href="https://www.boe.es/buscar/act.php?id='+id+'" target="_blank" class="boe-r-btn" style="text-decoration:none">↗ BOE</a>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+
+    // Mostrar resumen en el chat
+    var labelDays = days===7?'última semana':days===30?'último mes':'últimos 3 meses';
+    var topicLabel = document.querySelector('.novedad-btn.active').textContent;
+    addMsgAI('📋 **Novedades normativas — '+topicLabel+' ('+labelDays+')**\n\n'+
+      normas.slice(0,5).map(function(n,i){
+        return (i+1)+'. **'+n.titulo+'**'+(n.fecha_publicacion?'\n   📅 '+n.fecha_publicacion.substring(0,10):'');
+      }).join('\n\n')+
+      (normas.length>5?'\n\n_...y '+(normas.length-5)+' más en el panel izquierdo._':'')+
+      '\n\nPulsa **"📥 Cargar"** en cualquier norma para leer su texto completo y hacer preguntas sobre ella.');
+
+  } catch(err){
+    resultsDiv.innerHTML = '<div style="padding:10px;font-size:11px;color:var(--crimson)">Error: '+err.message+'</div>';
+  }
+
+  btn.textContent = 'Ver novedades'; btn.disabled = false;
+}
+
 document.addEventListener("DOMContentLoaded",function(){
   // Home → Portal de Documentos
   document.getElementById("btn-goto-docs").addEventListener("click",goToDocs);
@@ -2012,6 +2198,57 @@ document.addEventListener("DOMContentLoaded",function(){
           <button onclick="consultarBOE('BOIB')" id="btn-boib" style="flex:1;padding:7px;border:1.5px solid var(--crimson);border-radius:8px;background:#fff;color:var(--crimson);font-family:'Montserrat',sans-serif;font-size:11px;font-weight:600;cursor:pointer">📋 BOIB hoy</button>
         </div>
         <div id="boe-status" style="font-size:10px;color:var(--text-mid);text-align:center"></div>
+      </div>
+
+      <!-- Búsqueda BOE Avanzada -->
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+        <h3 style="font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;color:var(--text);margin:0 0 6px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--crimson)"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          Búsqueda BOE
+        </h3>
+        <p style="font-size:10px;color:var(--text-mid);margin:0 0 8px">Busca normativa en tiempo real en la base de datos del BOE.</p>
+
+        <!-- Búsqueda de normativa -->
+        <div style="display:flex;gap:5px;margin-bottom:6px">
+          <input id="boe-search-input" type="text" placeholder="ej: IVA vehículos, IRPF autónomos..."
+            style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;
+                   font-size:11px;font-family:'Montserrat',sans-serif;outline:none;min-width:0"
+            onkeydown="if(event.key==='Enter') buscarNormativaBOE()"/>
+          <button onclick="buscarNormativaBOE()" id="boe-search-btn"
+            style="padding:7px 10px;background:var(--crimson);color:#fff;border:none;
+                   border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">
+            Buscar
+          </button>
+        </div>
+        <div id="boe-search-results" style="max-height:180px;overflow-y:auto;display:none;
+             border:1px solid var(--border);border-radius:8px;background:#fff"></div>
+
+        <!-- Novedades normativas -->
+        <div style="margin-top:10px">
+          <p style="font-size:10px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px">
+            Novedades normativas
+          </p>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+            <button class="novedad-btn active" data-topic="tráfico vehículos DGT" onclick="selTopicNovedad(this)">🚗 Tráfico</button>
+            <button class="novedad-btn" data-topic="hacienda IRPF IVA fiscal tributario" onclick="selTopicNovedad(this)">💶 Fiscal</button>
+            <button class="novedad-btn" data-topic="seguridad social autónomos laboral" onclick="selTopicNovedad(this)">👷 Laboral</button>
+            <button class="novedad-btn" data-topic="extranjería residencia NIE" onclick="selTopicNovedad(this)">🌍 Extranjería</button>
+          </div>
+          <div style="display:flex;gap:5px">
+            <select id="boe-days-select" style="flex:1;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:10px;font-family:'Montserrat',sans-serif;outline:none">
+              <option value="7">Última semana</option>
+              <option value="30">Último mes</option>
+              <option value="90">Últimos 3 meses</option>
+            </select>
+            <button onclick="cargarNovedades()" id="btn-novedades"
+              style="padding:6px 10px;background:var(--crimson);color:#fff;border:none;
+                     border-radius:8px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap">
+              Ver novedades
+            </button>
+          </div>
+          <div id="boe-novedades-results" style="margin-top:6px;display:none;max-height:200px;overflow-y:auto;
+               border:1px solid var(--border);border-radius:8px;background:#fff"></div>
+        </div>
       </div>
 
       <!-- Biblioteca Jurídica BOE -->
