@@ -2010,16 +2010,32 @@ function renderChats(){
   if(!lista) return;
   var chats = getChats();
 
+  // Ordenar por fecha de uso más reciente primero
+  chats.sort(function(a,b){ return b.fecha - a.fecha; });
+
+  // Botón + siempre arriba del todo
+  var btnNuevo =
+    '<button onclick="nuevoChat()" '+
+    'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;'+
+    'padding:9px 12px;border-radius:9px;border:1.5px dashed var(--border);'+
+    'background:#fff;cursor:pointer;font-family:\'Montserrat\',sans-serif;'+
+    'font-size:11px;font-weight:600;color:var(--text-mid);margin-bottom:8px;'+
+    'transition:all .15s" '+
+    'onmouseenter="this.style.borderColor=\'var(--crimson)\';this.style.color=\'var(--crimson)\'" '+
+    'onmouseleave="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text-mid)\'">'+
+    '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor">'+
+    '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>'+
+    'Nueva conversación</button>';
+
   if(chats.length===0){
-    lista.innerHTML =
-      '<div style="padding:20px 8px;text-align:center">'+
-      '<svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:var(--border);display:block;margin:0 auto 8px">'+
-      '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>'+
-      '<p style="font-size:11px;color:var(--text-light);margin:0">Sin conversaciones.<br>Pulsa "Nuevo" para empezar.</p></div>';
+    lista.innerHTML = btnNuevo +
+      '<div style="text-align:center;padding:16px 8px">'+
+      '<p style="font-size:11px;color:var(--text-light);margin:0;line-height:1.6">'+
+      'Sin conversaciones guardadas.</p></div>';
     return;
   }
 
-  lista.innerHTML = chats.map(function(c){
+  var items = chats.map(function(c){
     var activo   = c.id===chatActualId ? 'active' : '';
     var fecha    = new Date(c.fecha);
     var hoy      = new Date();
@@ -2028,25 +2044,27 @@ function renderChats(){
       ? fecha.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})
       : fecha.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
     var nMsgs  = c.mensajes ? c.mensajes.filter(function(m){return m.role==='user';}).length : 0;
-    var titulo = (c.titulo || 'Nueva conversación');
+    var titulo = c.titulo || 'Nueva conversación';
     var id     = c.id;
     return '<div class="chat-item '+activo+'" onclick="cargarChat(\''+id+'\')">'+
       '<div style="display:flex;align-items:center;gap:4px;min-width:0">'+
-        '<div style="flex:1;min-width:0">'+
+        '<div style="flex:1;min-width:0;overflow:hidden">'+
           '<div class="chat-item-title">'+titulo+'</div>'+
           '<div class="chat-item-meta">'+fechaStr+(nMsgs?' &middot; '+nMsgs+' msg':'')+'</div>'+
         '</div>'+
         '<div class="chat-actions" style="display:flex;flex-direction:column;gap:1px;opacity:0;transition:opacity .15s;flex-shrink:0">'+
           '<button onclick="renombrarChat(\''+id+'\',event)" title="Renombrar"'+
-            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px;color:var(--text-mid)">✏️</button>'+
+            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px">✏️</button>'+
           '<button onclick="eliminarChat(\''+id+'\',event)" title="Eliminar"'+
-            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px;color:var(--text-mid)">🗑</button>'+
+            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px">🗑</button>'+
         '</div>'+
       '</div>'+
     '</div>';
   }).join('');
 
-  // Hover para mostrar acciones
+  lista.innerHTML = btnNuevo + items;
+
+  // Hover para acciones
   lista.querySelectorAll('.chat-item').forEach(function(el){
     var act = el.querySelector('.chat-actions');
     if(!act) return;
@@ -2054,6 +2072,7 @@ function renderChats(){
     el.addEventListener('mouseleave', function(){ act.style.opacity='0'; });
   });
 }
+
 
 
 function initChats(){
@@ -2067,7 +2086,7 @@ function initChats(){
 
 
 // ── SIDEBAR COLLAPSIBLE ───────────────────────────────────────────────────────
-var sidebarOpen = true;
+var sidebarOpen = false;
 
 function toggleSidebar(){
   var aside   = document.getElementById('ia-sidebar');
@@ -2095,13 +2114,59 @@ function renombrarChat(id, e){
   var chats = getChats();
   var chat  = chats.find(function(c){ return c.id===id; });
   if(!chat) return;
-  var nuevoNombre = prompt('Renombrar conversación:', chat.titulo);
-  if(nuevoNombre && nuevoNombre.trim()){
-    chat.titulo = nuevoNombre.trim().substring(0,60);
-    saveChats(chats);
-    renderChats();
+
+  // Crear modal inline
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;'+
+    'display:flex;align-items:center;justify-content:center;padding:20px';
+
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:380px;'+
+    'box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:\'Montserrat\',sans-serif">'+
+    '<h3 style="margin:0 0 16px;font-size:15px;font-weight:700;color:var(--text)">✏️ Renombrar conversación</h3>'+
+    '<input id="rename-input" type="text" value="'+chat.titulo.replace(/"/g,'&quot;')+'" maxlength="60"'+
+    ' style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;'+
+    'font-size:13px;font-family:\'Montserrat\',sans-serif;outline:none;box-sizing:border-box;'+
+    'color:var(--text)" />'+
+    '<div style="display:flex;gap:8px;margin-top:16px">'+
+      '<button id="rename-cancel" style="flex:1;padding:10px;border:1.5px solid var(--border);'+
+      'border-radius:9px;background:#fff;font-family:\'Montserrat\',sans-serif;font-size:12px;'+
+      'font-weight:600;color:#666;cursor:pointer">Cancelar</button>'+
+      '<button id="rename-ok" style="flex:2;padding:10px;border:none;border-radius:9px;'+
+      'background:var(--crimson);font-family:\'Montserrat\',sans-serif;font-size:12px;'+
+      'font-weight:700;color:#fff;cursor:pointer">Guardar</button>'+
+    '</div>'+
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  var input = document.getElementById('rename-input');
+  input.focus();
+  input.select();
+
+  function guardar(){
+    var nuevo = input.value.trim();
+    if(nuevo){
+      chat.titulo = nuevo.substring(0,60);
+      saveChats(chats);
+      renderChats();
+    }
+    document.body.removeChild(overlay);
   }
+
+  document.getElementById('rename-ok').addEventListener('click', guardar);
+  document.getElementById('rename-cancel').addEventListener('click', function(){
+    document.body.removeChild(overlay);
+  });
+  overlay.addEventListener('click', function(ev){
+    if(ev.target===overlay) document.body.removeChild(overlay);
+  });
+  input.addEventListener('keydown', function(ev){
+    if(ev.key==='Enter') guardar();
+    if(ev.key==='Escape') document.body.removeChild(overlay);
+  });
 }
+
 
 document.addEventListener("DOMContentLoaded",function(){
   // Home → Portal de Documentos
@@ -2425,7 +2490,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <div style="display:flex;height:calc(100vh - 60px);overflow:hidden">
 
     <!-- SIDEBAR COLLAPSIBLE -->
-    <aside id="ia-sidebar" style="width:300px;min-width:300px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease,min-width .25s ease;position:relative">
+    <aside id="ia-sidebar" style="width:0px;min-width:0px;background:#fff;border-right:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column;transition:width .25s ease,min-width .25s ease;position:relative">
       <!-- Toggle button -->
       <button id="sidebar-toggle" onclick="toggleSidebar()" title="Colapsar panel"
         style="position:absolute;right:-14px;top:50%;transform:translateY(-50%);
@@ -2433,7 +2498,7 @@ document.addEventListener("DOMContentLoaded",function(){
                border:1.5px solid var(--border);cursor:pointer;z-index:10;
                display:flex;align-items:center;justify-content:center;
                box-shadow:0 2px 8px rgba(0,0,0,.1);transition:all .2s">
-        <svg id="sidebar-arrow" viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--text-mid);transition:transform .25s">
+        <svg id="sidebar-arrow" viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--text-mid);transition:transform .25s;transform:rotate(180deg)">
           <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/>
         </svg>
       </button>
@@ -2586,22 +2651,15 @@ document.addEventListener("DOMContentLoaded",function(){
     <div style="width:230px;min-width:230px;background:#fff;border-right:1px solid var(--border);
                 display:flex;flex-direction:column;overflow:hidden">
 
-      <!-- Cabecera con botón nuevo chat -->
-      <div style="padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0">
+      <!-- Cabecera solo título -->
+      <div style="height:60px;padding:0 14px;display:flex;align-items:center;
+                  flex-shrink:0;border-bottom:1px solid var(--border)">
         <span style="font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;
-                     color:var(--text);letter-spacing:.01em">Conversaciones</span>
-        <button onclick="nuevoChat()" title="Nueva conversación"
-          style="display:flex;align-items:center;gap:5px;padding:5px 10px;
-                 border-radius:8px;background:var(--crimson);border:none;
-                 cursor:pointer;font-family:'Montserrat',sans-serif;
-                 font-size:11px;font-weight:600;color:#fff;white-space:nowrap;flex-shrink:0">
-          <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-          Nuevo
-        </button>
+                     color:var(--text)">Conversaciones</span>
       </div>
 
-      <!-- Lista de chats con scroll -->
-      <div id="chats-lista" style="flex:1;overflow-y:auto;padding:0 8px 8px">
+      <!-- Lista con scroll — el + aparece arriba de todo -->
+      <div id="chats-lista" style="flex:1;overflow-y:auto;padding:8px">
       </div>
     </div>
 
