@@ -137,18 +137,15 @@
 
     
     /* ── Chat History ── */
-    .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;transition:all .15s;
-               border:1.5px solid transparent;margin-bottom:4px;position:relative}
-    .chat-item:hover{background:#fff;border-color:var(--border)}
-    .chat-item.active{background:#fff;border-color:var(--crimson)}
-    .chat-item-title{font-size:12px;font-weight:600;color:var(--text);
-                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
-    .chat-item-meta{font-size:10px;color:var(--text-mid)}
-    .chat-item-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-                   background:none;border:none;cursor:pointer;color:var(--text-light);
-                   font-size:14px;opacity:0;transition:opacity .15s;padding:2px 4px}
-    .chat-item:hover .chat-item-del{opacity:1}
-    .chat-item-del:hover{color:var(--crimson)}
+    .chat-item{padding:9px 10px;border-radius:9px;cursor:pointer;transition:all .15s;
+               border:1.5px solid transparent;margin-bottom:3px}
+    .chat-item:hover{background:var(--bg);border-color:var(--border)}
+    .chat-item.active{background:var(--crimson-light);border-color:var(--crimson);
+                      box-shadow:0 1px 6px rgba(157,19,54,.08)}
+    .chat-item-title{font-size:11px;font-weight:600;color:var(--text);
+                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                     margin-bottom:2px;display:block;max-width:140px}
+    .chat-item-meta{font-size:10px;color:var(--text-mid);white-space:nowrap;display:block}
 
     </style>
 </head>
@@ -2014,22 +2011,50 @@ function renderChats(){
   var chats = getChats();
 
   if(chats.length===0){
-    lista.innerHTML = '<p style="font-size:11px;color:var(--text-light);text-align:center;padding:20px 0">Sin chats guardados</p>';
+    lista.innerHTML =
+      '<div style="padding:20px 8px;text-align:center">'+
+      '<svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:var(--border);display:block;margin:0 auto 8px">'+
+      '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>'+
+      '<p style="font-size:11px;color:var(--text-light);margin:0">Sin conversaciones.<br>Pulsa "Nuevo" para empezar.</p></div>';
     return;
   }
 
   lista.innerHTML = chats.map(function(c){
-    var activo = c.id===chatActualId ? ' active' : '';
-    var fecha  = new Date(c.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
-    var hora   = new Date(c.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    var activo   = c.id===chatActualId ? 'active' : '';
+    var fecha    = new Date(c.fecha);
+    var hoy      = new Date();
+    var esHoy    = fecha.toDateString()===hoy.toDateString();
+    var fechaStr = esHoy
+      ? fecha.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})
+      : fecha.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
     var nMsgs  = c.mensajes ? c.mensajes.filter(function(m){return m.role==='user';}).length : 0;
-    return '<div class="chat-item'+activo+'" onclick="cargarChat(\''+c.id+'\')">'+
-      '<div class="chat-item-title">'+c.titulo+'</div>'+
-      '<div class="chat-item-meta">'+fecha+' '+hora+(nMsgs?' · '+nMsgs+' msg':'')+'</div>'+
-      '<button class="chat-item-del" onclick="eliminarChat(\''+c.id+'\',event)" title="Eliminar">✕</button>'+
+    var titulo = (c.titulo || 'Nueva conversación');
+    var id     = c.id;
+    return '<div class="chat-item '+activo+'" onclick="cargarChat(\''+id+'\')">'+
+      '<div style="display:flex;align-items:center;gap:4px;min-width:0">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="chat-item-title">'+titulo+'</div>'+
+          '<div class="chat-item-meta">'+fechaStr+(nMsgs?' &middot; '+nMsgs+' msg':'')+'</div>'+
+        '</div>'+
+        '<div class="chat-actions" style="display:flex;flex-direction:column;gap:1px;opacity:0;transition:opacity .15s;flex-shrink:0">'+
+          '<button onclick="renombrarChat(\''+id+'\',event)" title="Renombrar"'+
+            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px;color:var(--text-mid)">✏️</button>'+
+          '<button onclick="eliminarChat(\''+id+'\',event)" title="Eliminar"'+
+            ' style="background:none;border:none;cursor:pointer;padding:2px 3px;font-size:12px;line-height:1;border-radius:4px;color:var(--text-mid)">🗑</button>'+
+        '</div>'+
+      '</div>'+
     '</div>';
   }).join('');
+
+  // Hover para mostrar acciones
+  lista.querySelectorAll('.chat-item').forEach(function(el){
+    var act = el.querySelector('.chat-actions');
+    if(!act) return;
+    el.addEventListener('mouseenter', function(){ act.style.opacity='1'; });
+    el.addEventListener('mouseleave', function(){ act.style.opacity='0'; });
+  });
 }
+
 
 function initChats(){
   var chats = getChats();
@@ -2037,6 +2062,44 @@ function initChats(){
     cargarChat(chats[0].id);
   } else {
     nuevoChat();
+  }
+}
+
+
+// ── SIDEBAR COLLAPSIBLE ───────────────────────────────────────────────────────
+var sidebarOpen = true;
+
+function toggleSidebar(){
+  var aside   = document.getElementById('ia-sidebar');
+  var arrow   = document.getElementById('sidebar-arrow');
+  var toggleBtn = document.getElementById('sidebar-toggle');
+  sidebarOpen = !sidebarOpen;
+  if(sidebarOpen){
+    aside.style.width    = '300px';
+    aside.style.minWidth = '300px';
+    aside.style.overflow = 'auto';
+    arrow.style.transform = '';
+    toggleBtn.title = 'Colapsar panel';
+  } else {
+    aside.style.width    = '0px';
+    aside.style.minWidth = '0px';
+    aside.style.overflow = 'hidden';
+    arrow.style.transform = 'rotate(180deg)';
+    toggleBtn.title = 'Expandir panel';
+  }
+}
+
+// ── CHAT RENAME ───────────────────────────────────────────────────────────────
+function renombrarChat(id, e){
+  e.stopPropagation();
+  var chats = getChats();
+  var chat  = chats.find(function(c){ return c.id===id; });
+  if(!chat) return;
+  var nuevoNombre = prompt('Renombrar conversación:', chat.titulo);
+  if(nuevoNombre && nuevoNombre.trim()){
+    chat.titulo = nuevoNombre.trim().substring(0,60);
+    saveChats(chats);
+    renderChats();
   }
 }
 
@@ -2361,8 +2424,19 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <div style="display:flex;height:calc(100vh - 60px);overflow:hidden">
 
-    <!-- SIDEBAR -->
-    <aside style="width:300px;min-width:300px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column">
+    <!-- SIDEBAR COLLAPSIBLE -->
+    <aside id="ia-sidebar" style="width:300px;min-width:300px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;transition:width .25s ease,min-width .25s ease;position:relative">
+      <!-- Toggle button -->
+      <button id="sidebar-toggle" onclick="toggleSidebar()" title="Colapsar panel"
+        style="position:absolute;right:-14px;top:50%;transform:translateY(-50%);
+               width:28px;height:28px;border-radius:50%;background:#fff;
+               border:1.5px solid var(--border);cursor:pointer;z-index:10;
+               display:flex;align-items:center;justify-content:center;
+               box-shadow:0 2px 8px rgba(0,0,0,.1);transition:all .2s">
+        <svg id="sidebar-arrow" viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--text-mid);transition:transform .25s">
+          <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/>
+        </svg>
+      </button>
 
       <!-- Subir documentos -->
       <div style="padding:16px;border-bottom:1px solid var(--border)">
@@ -2509,22 +2583,29 @@ document.addEventListener("DOMContentLoaded",function(){
     </aside>
 
     <!-- HISTORIAL DE CHATS -->
-    <div style="width:220px;min-width:220px;background:#f9f9f9;border-right:1px solid var(--border);
+    <div style="width:230px;min-width:230px;background:#fff;border-right:1px solid var(--border);
                 display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <span style="font-family:'Montserrat',sans-serif;font-size:11px;font-weight:700;color:var(--text)">💬 Chats</span>
-        <button onclick="nuevoChat()" title="Nuevo chat"
-          style="width:26px;height:26px;border-radius:8px;background:var(--crimson);border:none;
-                 cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+
+      <!-- Cabecera con botón nuevo chat -->
+      <div style="padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0">
+        <span style="font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;
+                     color:var(--text);letter-spacing:.01em">Conversaciones</span>
+        <button onclick="nuevoChat()" title="Nueva conversación"
+          style="display:flex;align-items:center;gap:5px;padding:5px 10px;
+                 border-radius:8px;background:var(--crimson);border:none;
+                 cursor:pointer;font-family:'Montserrat',sans-serif;
+                 font-size:11px;font-weight:600;color:#fff;white-space:nowrap;flex-shrink:0">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Nuevo
         </button>
       </div>
-      <div id="chats-lista" style="flex:1;overflow-y:auto;padding:8px">
-        <!-- Chats se renderizan aquí -->
+
+      <!-- Lista de chats con scroll -->
+      <div id="chats-lista" style="flex:1;overflow-y:auto;padding:0 8px 8px">
       </div>
     </div>
 
-    <!-- CHAT -->
+        <!-- CHAT -->
     <main style="flex:1;display:flex;flex-direction:column;background:var(--bg);min-width:0">
       <div id="ia-msgs" style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column">
         <div id="ia-bienvenida" style="text-align:center;padding:40px 20px;margin:auto">
