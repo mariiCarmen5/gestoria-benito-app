@@ -135,6 +135,21 @@
                color:var(--crimson);background:#fff;cursor:pointer;font-family:'Montserrat',sans-serif}
     .boe-r-btn:hover{background:var(--crimson);color:#fff}
 
+    
+    /* ── Chat History ── */
+    .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;transition:all .15s;
+               border:1.5px solid transparent;margin-bottom:4px;position:relative}
+    .chat-item:hover{background:#fff;border-color:var(--border)}
+    .chat-item.active{background:#fff;border-color:var(--crimson)}
+    .chat-item-title{font-size:12px;font-weight:600;color:var(--text);
+                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+    .chat-item-meta{font-size:10px;color:var(--text-mid)}
+    .chat-item-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+                   background:none;border:none;cursor:pointer;color:var(--text-light);
+                   font-size:14px;opacity:0;transition:opacity .15s;padding:2px 4px}
+    .chat-item:hover .chat-item-del{opacity:1}
+    .chat-item-del:hover{color:var(--crimson)}
+
     </style>
 </head>
 <body>
@@ -998,71 +1013,84 @@ async function iaOpenRouter(messages, system){
     setKey('openrouter', key.trim()); key=key.trim();
   }
 
-  // Limpiar modelos deprecados o problemáticos guardados
-  var saved = localStorage.getItem('gb_or_model') || '';
-  var BAD = ['gemini-2.0-flash-exp','gemini-flash-1.5','llama-3.1-8b','mistral-7b',
-             'hermes-3','nousresearch','llama-3.3-70b','deepseek-r1','gemma-3-27b',
-             'mistral-small-3.1'];
-  if(!saved || BAD.some(function(d){ return saved.includes(d); })){
-    localStorage.removeItem('gb_or_model');
-    saved = '';
-  }
+  // Limpiar modelos específicos guardados — siempre usar openrouter/free
+  localStorage.removeItem('gb_or_model');
 
-  // SIEMPRE usar openrouter/free — el router oficial elige automáticamente
-  // el mejor modelo disponible en cada momento
-  var model = 'openrouter/free';
-
-  // Construir mensajes en formato OpenAI
   var msgs = [];
   if(system) msgs.push({role:'system', content:system});
   messages.forEach(function(m){
     var content = '';
-    if(typeof m.content === 'string'){
-      content = m.content;
-    } else if(Array.isArray(m.content)){
-      content = m.content
-        .filter(function(c){ return c.type==='text'; })
-        .map(function(c){ return c.text; }).join('\n');
+    if(typeof m.content==='string'){ content=m.content; }
+    else if(Array.isArray(m.content)){
+      content=m.content.filter(function(c){return c.type==='text';}).map(function(c){return c.text;}).join('\n');
     }
-    if(content.trim()) msgs.push({role: m.role, content: content});
+    if(content.trim()) msgs.push({role:m.role, content:content});
   });
 
-  var resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': 'Bearer '+key,
-      'HTTP-Referer':  'https://gestoriabenito.com',
-      'X-Title':       'Gestoría Benito'
-    },
-    body: JSON.stringify({
-      model:       model,
-      messages:    msgs,
-      max_tokens:  2048,
-      temperature: 0.3
-    })
-  });
+  // Reintentar hasta 3 veces con espera progresiva si hay rate limit
+  var MAX_INTENTOS = 3;
+  var esperas      = [8000, 15000, 25000]; // ms entre reintentos
 
-  var data = await resp.json();
+  for(var intento=0; intento<MAX_INTENTOS; intento++){
+    try {
+      var resp = await fetch('https://openrouter.ai/api/v1/chat/completions',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+key,
+          'HTTP-Referer':'https://gestoriabenito.com',
+          'X-Title':'Gestoría Benito'
+        },
+        body:JSON.stringify({
+          model:'openrouter/free',
+          messages:msgs,
+          max_tokens:2048,
+          temperature:0.3
+        })
+      });
 
-  if(!resp.ok){
-    var em = data.error ? data.error.message : 'Error '+resp.status;
-    if(resp.status === 401){
-      setKey('openrouter','');
-      throw new Error('API Key incorrecta. Ve a "Configurar IA" para actualizarla.');
+      var data = await resp.json();
+
+      // Éxito
+      if(resp.ok && data.choices && data.choices[0]){
+        return data.choices[0].message.content || '';
+      }
+
+      var em = data.error ? data.error.message : 'Error '+resp.status;
+
+      // API key incorrecta — no reintentar
+      if(resp.status===401){
+        setKey('openrouter','');
+        throw new Error('API Key incorrecta. Ve a "Configurar IA" para actualizarla.');
+      }
+
+      // Rate limit — esperar y reintentar
+      if(resp.status===429 || em.toLowerCase().includes('limit') || em.toLowerCase().includes('quota') || em.toLowerCase().includes('rate')){
+        if(intento < MAX_INTENTOS-1){
+          var seg = Math.round(esperas[intento]/1000);
+          sysMsg('⏳ Límite de peticiones alcanzado. Reintentando en '+seg+' segundos... ('+(intento+1)+'/'+MAX_INTENTOS+')');
+          await new Promise(function(r){ setTimeout(r, esperas[intento]); });
+          continue;
+        }
+        throw new Error('Límite de OpenRouter alcanzado. Espera 1-2 minutos y vuelve a preguntar.');
+      }
+
+      // Otro error — no reintentar
+      throw new Error(em);
+
+    } catch(fetchErr){
+      if(fetchErr.message.includes('API Key') || fetchErr.message.includes('Espera')) throw fetchErr;
+      if(intento < MAX_INTENTOS-1){
+        await new Promise(function(r){ setTimeout(r, esperas[intento]); });
+        continue;
+      }
+      throw fetchErr;
     }
-    if(resp.status === 429 || em.includes('quota') || em.includes('limit')){
-      throw new Error('Límite de uso alcanzado en OpenRouter. Espera 1-2 minutos e intenta de nuevo.');
-    }
-    throw new Error(em);
   }
 
-  if(!data.choices || !data.choices[0]){
-    throw new Error('Respuesta vacía del modelo. Intenta de nuevo.');
-  }
-
-  return data.choices[0].message.content || '';
+  throw new Error('No se pudo conectar con OpenRouter tras '+MAX_INTENTOS+' intentos.');
 }
+
 
 
 
@@ -1373,17 +1401,19 @@ async function enviarConsulta(){
   // Paso 2: construir system prompt con TODO el contexto disponible
   var sinFuentes = iaDocs.length === 0 && !iaCtxExtra;
 
-  var tieneFuentes = iaDocs.length > 0 || iaCtxExtra.length > 0;
-
   var system =
-    'Eres el asistente interno exclusivo de Gestoría Benito (Palma de Mallorca).\n'+
-    'Tu ámbito es: trámites administrativos, normativa jurídica española, fiscalidad, tráfico, seguridad social, extranjería, derecho mercantil y todo lo relacionado con gestoría.\n'+
-    '\nREGLAS:\n'+
-    '1. Si la pregunta es AJENA al ámbito de gestoría (deportes, entretenimiento, cocina, personas famosas, etc.), responde SOLO: "Esta consulta está fuera del ámbito de Gestoría Benito."\n'+
-    '2. Si hay fuentes cargadas (documentos, BOE, normativa), úsalas como fuente principal y cítalas.\n'+
-    '3. Si NO hay fuentes cargadas pero la pregunta SÍ es del ámbito, responde con tu conocimiento jurídico actualizado indicando claramente que es conocimiento general sin fuente cargada.\n'+
-    '4. Cuando respondas, indica siempre de qué fuente proviene la información.\n'+
-    '5. Sé preciso, conciso y práctico. Cita artículos y normativa cuando sea relevante.';
+    'Eres el asistente especializado de Gestoría Benito, una gestoría administrativa en Palma de Mallorca.\n\n'+
+    'CAPACIDADES:\n'+
+    '- Respondes cualquier consulta relacionada con gestoría: tráfico, DGT, IRPF, IVA, sociedades, autónomos, seguridad social, extranjería, trámites administrativos, normativa española y balear.\n'+
+    '- Usas las fuentes cargadas en esta sesión como referencia principal cuando están disponibles.\n'+
+    '- Cuando no hay fuentes cargadas, usas tu conocimiento actualizado de la normativa española.\n'+
+    '- Si se ha consultado el BOE/BOIB o se han cargado documentos, los priorizas y citas.\n\n'+
+    'REGLAS:\n'+
+    '1. Responde SIEMPRE preguntas de gestoría aunque no haya fuentes cargadas — usa tu conocimiento.\n'+
+    '2. Indica la fuente cuando cites normativa: artículo concreto, fecha, BOE, etc.\n'+
+    '3. Si la pregunta es completamente ajena a gestoría (deportes, cocina, famosos), declínala brevemente.\n'+
+    '4. Sé preciso, práctico y directo. Cita artículos cuando sea útil.\n'+
+    '5. Si la información puede haber cambiado recientemente, indícalo y sugiere verificar en el BOE.';
 
   if(iaCtxExtra) system+='\n\n'+iaCtxExtra;
 
@@ -1403,6 +1433,11 @@ async function enviarConsulta(){
   userContent.push({type:'text',text:texto});
 
   iaHistory.push({role:'user', content:pdfDocs.length?userContent:texto});
+  // Auto-título del chat con el primer mensaje
+  if(chatActualId && iaHistory.filter(function(m){return m.role==='user';}).length===1){
+    var chatsNow=getChats(), idxNow=chatsNow.findIndex(function(c){return c.id===chatActualId;});
+    if(idxNow!==-1){ chatsNow[idxNow].titulo=texto.substring(0,40)+(texto.length>40?'...':''); saveChats(chatsNow); renderChats(); }
+  }
 
   var apiMsgs=iaHistory.slice(-8);
 
@@ -1453,6 +1488,8 @@ async function enviarConsulta(){
 
     addMsgAI(resp, fuentesHTML);
     iaHistory.push({role:'assistant',content:resp});
+    guardarChatActual();
+    renderChats();
   }catch(err){
     quitarTyping();
     addMsgAI('❌ Error: '+err.message);
@@ -1496,126 +1533,114 @@ var CODIGOS_BOE = [
 async function buscarEnBibliotecaAutomatico(pregunta){
   var q = pregunta.toLowerCase();
 
-  // ── 1. Detectar si pide BOE/BOIB del día ─────────────────────────────────
-  var pideBOE  = /\b(boe|boletín oficial del estado|último boe|boe de hoy|boe publicado)\b/.test(q);
-  var pideBOIB = /\b(boib|boletín oficial de (las islas )?baleares|último boib)\b/.test(q);
-
-  if(pideBOE || pideBOIB){
-    var boletin = pideBOIB ? 'BOIB' : 'BOE';
-    // Solo cargar si no está ya en contexto
-    if(!iaCtxExtra.includes('CONTEXTO '+boletin)){
-      sysMsg('🔍 Consultando el '+boletin+' automáticamente...');
-      await consultarBOE(boletin);
+  // ── Detectar BOE/BOIB del día ─────────────────────────────────────────────
+  if(/\b(boe|boletín oficial|último boe|boe de hoy|boe publicado|novedades boe)\b/.test(q)){
+    if(!iaCtxExtra.includes('CONTEXTO BOE')){
+      sysMsg('📋 Consultando el BOE automáticamente...');
+      await consultarBOE('BOE');
     }
-    return;
+  }
+  if(/\b(boib|boletín balear|último boib|boib de hoy)\b/.test(q)){
+    if(!iaCtxExtra.includes('CONTEXTO BOIB')){
+      sysMsg('📋 Consultando el BOIB automáticamente...');
+      await consultarBOE('BOIB');
+    }
   }
 
-  // ── 2. Detectar si pide búsqueda de normativa concreta ───────────────────
-  var pideBusqueda = /\b(busca|encuentra|hay alguna|existe alguna|normativa sobre|ley sobre|legislación|decreto|real decreto|orden ministerial|circular)\b/.test(q);
-  var temasBusqueda = [
-    {kw:['gasolina','combustible','carburante','hidrocarburos','diesel','gasoil'], term:'combustibles hidrocarburos gasolina'},
-    {kw:['alquiler','arrendamiento','inquilino','arrendatario'], term:'arrendamiento alquiler vivienda'},
-    {kw:['herencia','testamento','sucesión','heredero'], term:'herencia sucesión testamento'},
-    {kw:['pensión','jubilación','retiro'], term:'pensiones jubilación seguridad social'},
-    {kw:['empresa','sociedad','mercantil','sl','sa'], term:'sociedades mercantiles capital'},
-    {kw:['multa','sanción','infracción'], term:'sanciones infracciones administrativas'},
-    {kw:['permiso','licencia','autorización'], term:'permisos autorizaciones administrativas'},
-    {kw:['impuesto','tributo','gravamen','tasa'], term:'impuestos tributos fiscalidad'},
-    {kw:['contrato','acuerdo','convenio'], term:'contratos administrativos laborales'},
-    {kw:['menor','niño','tutor','tutela','guarda','custodia'], term:'menores protección familia'},
-    {kw:['discapacidad','minusvalía','dependencia'], term:'discapacidad dependencia'},
-    {kw:['vivienda','hipoteca','inmueble','propiedad'], term:'vivienda hipoteca propiedad'},
+  // ── Detectar si pide info de DGT ──────────────────────────────────────────
+  var pideDGT = /\b(dgt|dirección general de tráfico|sede\.dgt|tasa dgt|trámite dgt|permiso dgt|multa dgt)\b/.test(q);
+  if(pideDGT && !iaDocs.some(function(d){return d.name==='DGT Web';})){
+    sysMsg('🔍 Buscando en normativa de tráfico (DGT)...');
+    try {
+      var url = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?query=trafico+DGT+permiso+conducir&limit=3';
+      var pr  = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
+      var r   = await fetch(pr, {signal:AbortSignal.timeout(8000)});
+      var d   = await r.json(); var data = JSON.parse(d.contents);
+      if(data.data && data.data.length){
+        var resumen = 'NORMATIVA DGT/TRÁFICO:\n'+data.data.map(function(n,i){
+          return (i+1)+'. '+n.titulo+(n.fecha_publicacion?' ('+n.fecha_publicacion.substring(0,10)+')':'');
+        }).join('\n');
+        iaDocs.push({name:'DGT Web', content:resumen, type:'text'});
+        renderDocs();
+        sysMsg('✅ Normativa de tráfico cargada automáticamente.');
+      }
+    } catch(e){ /* silencioso */ }
+  }
+
+  // ── Búsqueda en API consolidada del BOE por tema ──────────────────────────
+  var TEMAS = [
+    {kw:['gasolina','combustible','carburante','diesel','hidrocarburos'], q:'combustibles hidrocarburos energia'},
+    {kw:['alquiler','arrendamiento','inquilino','arrendatario','casero'], q:'arrendamiento alquiler vivienda'},
+    {kw:['herencia','testamento','sucesión','heredero','legado'], q:'herencia sucesion testamento'},
+    {kw:['pensión','jubilación','retiro','pensionista'], q:'pensiones jubilacion seguridad social'},
+    {kw:['hipoteca','préstamo hipotecario','banco','entidad financiera'], q:'hipoteca prestamo financiero'},
+    {kw:['discapacidad','minusvalía','dependencia','grado dependencia'], q:'discapacidad dependencia reconocimiento'},
+    {kw:['menor','tutor','tutela','custodia','adopción'], q:'menores proteccion familia'},
+    {kw:['concurso acreedores','quiebra','insolvencia'], q:'concurso acreedores insolvencia'},
+    {kw:['licencia','permiso obra','construcción','urbanismo'], q:'licencias urbanismo construccion'},
+    {kw:['subvención','ayuda','beca','prestación económica'], q:'subvenciones ayudas publicas'},
   ];
 
-  // ── 3. Detectar código jurídico más relevante ─────────────────────────────
-  var mejorCodigo = null;
-  var maxMatches  = 0;
+  var termBOE = null;
+  for(var i=0; i<TEMAS.length; i++){
+    if(TEMAS[i].kw.some(function(kw){ return q.includes(kw); })){
+      termBOE = TEMAS[i].q; break;
+    }
+  }
+  if(termBOE && !iaDocs.some(function(d){return d.content && d.content.includes(termBOE.split(' ')[0]);})){
+    sysMsg('🔍 Buscando normativa sobre "'+TEMAS[i-1].kw[0]+'" en el BOE...');
+    try {
+      var url2  = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?query='+encodeURIComponent(termBOE)+'&limit=4';
+      var pr2   = 'https://api.allorigins.win/get?url='+encodeURIComponent(url2);
+      var r2    = await fetch(pr2, {signal:AbortSignal.timeout(8000)});
+      var d2    = await r2.json(); var data2 = JSON.parse(d2.contents);
+      if(data2.data && data2.data.length){
+        var res2 = 'NORMATIVA BOE sobre "'+termBOE+'":\n'+data2.data.map(function(n,i2){
+          return (i2+1)+'. '+n.titulo+(n.fecha_publicacion?' ('+n.fecha_publicacion.substring(0,10)+')':'')+
+                 (n.identificador?'\n   → https://www.boe.es/buscar/act.php?id='+n.identificador:'');
+        }).join('\n\n');
+        iaDocs.push({name:'BOE: '+termBOE, content:res2, type:'text'});
+        renderDocs();
+        sysMsg('✅ Normativa encontrada en el BOE.');
+      }
+    } catch(e){ /* silencioso */ }
+  }
 
+  // ── Detectar código jurídico de la Biblioteca ─────────────────────────────
+  var mejorCodigo = null; var maxMatches = 0;
   CODIGOS_BOE.forEach(function(cod){
     var matches = cod.keywords.filter(function(kw){ return q.includes(kw); }).length;
     if(matches > maxMatches){ maxMatches = matches; mejorCodigo = cod; }
   });
 
-  // ── 4. Si hay match de código → cargarlo ─────────────────────────────────
-  if(mejorCodigo && maxMatches > 0){
-    var yaExiste = iaDocs.some(function(d){ return d.name === mejorCodigo.n; });
-    if(!yaExiste){
-      sysMsg('🔍 Cargando "'+mejorCodigo.n+'" automáticamente...');
-      var btn = document.querySelector('.bib-btn[data-n="'+mejorCodigo.n+'"]');
-      try {
-        var urlTexto = 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+
-                       encodeURIComponent(mejorCodigo.id)+'&modo=2&nota=0&tab=2';
-        var proxy = 'https://api.allorigins.win/get?url='+encodeURIComponent(urlTexto);
-        var resp  = await fetch(proxy, {signal: AbortSignal.timeout(12000)});
-        var data  = await resp.json();
-        var raw   = data.contents || '';
-        var match = raw.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
-        var texto = match ? match[0] : raw;
-        texto = texto.replace(/<script[\s\S]*?<\/script>/gi,'')
-                     .replace(/<style[\s\S]*?<\/style>/gi,'')
-                     .replace(/<nav[\s\S]*?<\/nav>/gi,'')
-                     .replace(/<[^>]+>/g,' ')
-                     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-                     .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'')
-                     .replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
-        if(texto.length > 40000) texto = texto.substring(0,40000)+'\n[...truncado]';
-        if(texto.length > 200){
-          iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO: '+mejorCodigo.n+'\nFuente: BOE\n\n'+texto, type:'text'});
-          renderDocs();
-          if(btn) btn.classList.add('on');
-          sysMsg('✅ "'+mejorCodigo.n+'" cargado automáticamente.');
-        }
-      } catch(e){
-        iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO: '+mejorCodigo.n+'\nURL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+mejorCodigo.id, type:'text'});
-        renderDocs();
-        if(btn) btn.classList.add('on');
+  if(mejorCodigo && maxMatches > 0 && !iaDocs.some(function(d){return d.name===mejorCodigo.n;})){
+    sysMsg('🔍 Cargando "'+mejorCodigo.n+'" de la Biblioteca Jurídica BOE...');
+    var btn = document.querySelector('.bib-btn[data-n="'+mejorCodigo.n+'"]');
+    try {
+      var urlT  = 'https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+encodeURIComponent(mejorCodigo.id)+'&modo=2&nota=0&tab=2';
+      var prT   = 'https://api.allorigins.win/get?url='+encodeURIComponent(urlT);
+      var rT    = await fetch(prT, {signal:AbortSignal.timeout(12000)});
+      var dT    = await rT.json();
+      var raw   = dT.contents || '';
+      var match = raw.match(/id="codigoe"[\s\S]*?(?=<\/body>|$)/i);
+      var texto = match ? match[0] : raw;
+      texto = texto.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'')
+                   .replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                   .replace(/&nbsp;/g,' ').replace(/&#\d+;/g,'').replace(/[ \t]+/g,' ')
+                   .replace(/\n{3,}/g,'\n\n').trim();
+      if(texto.length > 40000) texto = texto.substring(0,40000)+'\n[...truncado]';
+      if(texto.length > 200){
+        iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO BOE: '+mejorCodigo.n+'\n\n'+texto, type:'text'});
+        renderDocs(); if(btn) btn.classList.add('on');
+        sysMsg('✅ "'+mejorCodigo.n+'" cargado.');
       }
-    }
-    return;
-  }
-
-  // ── 5. Si pide búsqueda de tema específico → buscar en API consolidada ────
-  if(pideBusqueda){
-    var termino = null;
-    for(var i=0; i<temasBusqueda.length; i++){
-      if(temasBusqueda[i].kw.some(function(kw){ return q.includes(kw); })){
-        termino = temasBusqueda[i].term; break;
-      }
-    }
-    // Si no hay tema específico, extraer palabras clave de la pregunta
-    if(!termino){
-      var stopwords = ['consulta','busca','dime','hay','si','el','la','los','las','de','del','en','un','una','que','por','para','con','sobre','como','esto','esto'];
-      termino = pregunta.split(/\s+/)
-        .filter(function(w){ return w.length>4 && !stopwords.includes(w.toLowerCase()); })
-        .slice(0,3).join(' ');
-    }
-    if(termino){
-      var yaExiste = iaDocs.some(function(d){ return d.name && d.name.includes(termino.split(' ')[0]); });
-      if(!yaExiste){
-        sysMsg('🔍 Buscando normativa sobre "'+termino+'" en el BOE...');
-        try {
-          var url = 'https://www.boe.es/datosabiertos/api/legislacion-consolidada?query='+
-                    encodeURIComponent(termino)+'&limit=5';
-          var proxy2 = 'https://api.allorigins.win/get?url='+encodeURIComponent(url);
-          var resp2  = await fetch(proxy2, {signal: AbortSignal.timeout(10000)});
-          var raw2   = await resp2.json();
-          var data2  = JSON.parse(raw2.contents);
-          var normas = data2.data || [];
-          if(normas.length > 0){
-            var resumen = 'NORMATIVA ENCONTRADA sobre "'+termino+'":\n\n'+
-              normas.map(function(n,i){
-                return (i+1)+'. '+n.titulo+(n.fecha_publicacion?' ('+n.fecha_publicacion.substring(0,10)+')':'')+
-                  '\n   ID: '+(n.identificador||'');
-              }).join('\n\n');
-            iaDocs.push({name:'Búsqueda BOE: '+termino, content:resumen, type:'text'});
-            renderDocs();
-            sysMsg('✅ '+normas.length+' normas encontradas sobre "'+termino+'".');
-          }
-        } catch(e){ /* silencioso */ }
-      }
+    } catch(e){
+      iaDocs.push({name:mejorCodigo.n, content:'CÓDIGO: '+mejorCodigo.n+'\nURL: https://www.boe.es/biblioteca_juridica/codigos/codigo.php?id='+mejorCodigo.id, type:'text'});
+      renderDocs(); if(btn) btn.classList.add('on');
     }
   }
 }
+
 
 
 
@@ -1858,6 +1883,163 @@ async function cargarNovedades(){
   btn.textContent = 'Ver novedades'; btn.disabled = false;
 }
 
+
+// ═══════════════════════════════════════════════════════
+//  SISTEMA DE CHATS PERSISTENTES
+// ═══════════════════════════════════════════════════════
+
+var chatActualId = null;  // ID del chat activo
+
+// ── CRUD de chats en localStorage ────────────────────────────────────────────
+function getChats(){
+  try { return JSON.parse(localStorage.getItem('gb_chats') || '[]'); } catch(e){ return []; }
+}
+function saveChats(chats){
+  localStorage.setItem('gb_chats', JSON.stringify(chats));
+}
+
+function nuevoChat(){
+  // Guardar el chat actual antes de crear uno nuevo
+  if(chatActualId) guardarChatActual();
+
+  var id    = 'chat_'+Date.now();
+  var chat  = {
+    id:       id,
+    titulo:   'Chat '+new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'}),
+    fecha:    Date.now(),
+    mensajes: [],
+    docs:     []
+  };
+
+  var chats = getChats();
+  chats.unshift(chat);
+  saveChats(chats);
+
+  chatActualId = id;
+  iaHistory    = [];
+  iaDocs       = [];
+  iaCtxExtra   = '';
+
+  // Limpiar UI
+  var msgs = document.getElementById('ia-msgs');
+  msgs.innerHTML = '';
+  // Mostrar bienvenida
+  msgs.innerHTML = '<div id="ia-bienvenida" style="text-align:center;padding:40px 20px;margin:auto">'+
+    '<div style="width:52px;height:52px;border-radius:14px;background:var(--crimson-light);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">'+
+    '<svg viewBox="0 0 24 24" style="width:26px;height:26px;fill:var(--crimson)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg></div>'+
+    '<h2 style="font-family:\'Cormorant Garamond\',serif;font-size:21px;font-weight:400;color:var(--text);margin:0 0 8px">Nuevo chat</h2>'+
+    '<p style="font-size:12px;color:var(--text-mid);max-width:380px;margin:0 auto">Escribe tu consulta o activa una fuente del panel izquierdo.</p></div>';
+
+  renderDocs();
+  renderChats();
+}
+
+function guardarChatActual(){
+  if(!chatActualId) return;
+  var chats = getChats();
+  var idx   = chats.findIndex(function(c){ return c.id===chatActualId; });
+  if(idx===-1) return;
+
+  // Generar título automático del primer mensaje del usuario
+  var primerMsg = iaHistory.find(function(m){ return m.role==='user'; });
+  if(primerMsg){
+    var texto = typeof primerMsg.content==='string' ? primerMsg.content
+      : (primerMsg.content.find(function(c){return c.type==='text';})||{}).text || '';
+    chats[idx].titulo = texto.substring(0,40)+(texto.length>40?'...':'');
+  }
+
+  chats[idx].mensajes = iaHistory;
+  chats[idx].docs     = iaDocs.map(function(d){
+    // No guardar PDFs en base64 (muy pesados) — solo texto
+    return {name:d.name, content:d.type==='pdf'?'[PDF: '+d.name+']':d.content, type:d.type==='pdf'?'text':d.type};
+  });
+  chats[idx].fecha = Date.now();
+  saveChats(chats);
+}
+
+function cargarChat(id){
+  // Guardar el actual primero
+  if(chatActualId && chatActualId!==id) guardarChatActual();
+
+  var chats = getChats();
+  var chat  = chats.find(function(c){ return c.id===id; });
+  if(!chat) return;
+
+  chatActualId = id;
+  iaHistory    = chat.mensajes || [];
+  iaDocs       = chat.docs || [];
+  iaCtxExtra   = '';
+
+  // Reconstruir UI del chat
+  var msgs = document.getElementById('ia-msgs');
+  msgs.innerHTML = '';
+
+  if(iaHistory.length===0){
+    msgs.innerHTML = '<div id="ia-bienvenida" style="text-align:center;padding:40px 20px;margin:auto">'+
+      '<div style="width:52px;height:52px;border-radius:14px;background:var(--crimson-light);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">'+
+      '<svg viewBox="0 0 24 24" style="width:26px;height:26px;fill:var(--crimson)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg></div>'+
+      '<p style="font-size:12px;color:var(--text-mid)">Chat vacío. Escribe tu primera consulta.</p></div>';
+  } else {
+    iaHistory.forEach(function(m){
+      var texto = typeof m.content==='string' ? m.content
+        : (Array.isArray(m.content) ? m.content.filter(function(c){return c.type==='text';}).map(function(c){return c.text;}).join('\n') : '');
+      if(!texto) return;
+      if(m.role==='user') addMsgUser(texto);
+      else addMsgAI(texto);
+    });
+  }
+
+  renderDocs();
+  renderChats();
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function eliminarChat(id, e){
+  e.stopPropagation();
+  var chats = getChats().filter(function(c){ return c.id!==id; });
+  saveChats(chats);
+  if(chatActualId===id){
+    chatActualId = null;
+    iaHistory=[]; iaDocs=[]; iaCtxExtra='';
+    if(chats.length>0) cargarChat(chats[0].id);
+    else nuevoChat();
+  } else {
+    renderChats();
+  }
+}
+
+function renderChats(){
+  var lista = document.getElementById('chats-lista');
+  if(!lista) return;
+  var chats = getChats();
+
+  if(chats.length===0){
+    lista.innerHTML = '<p style="font-size:11px;color:var(--text-light);text-align:center;padding:20px 0">Sin chats guardados</p>';
+    return;
+  }
+
+  lista.innerHTML = chats.map(function(c){
+    var activo = c.id===chatActualId ? ' active' : '';
+    var fecha  = new Date(c.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+    var hora   = new Date(c.fecha).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    var nMsgs  = c.mensajes ? c.mensajes.filter(function(m){return m.role==='user';}).length : 0;
+    return '<div class="chat-item'+activo+'" onclick="cargarChat(\''+c.id+'\')">'+
+      '<div class="chat-item-title">'+c.titulo+'</div>'+
+      '<div class="chat-item-meta">'+fecha+' '+hora+(nMsgs?' · '+nMsgs+' msg':'')+'</div>'+
+      '<button class="chat-item-del" onclick="eliminarChat(\''+c.id+'\',event)" title="Eliminar">✕</button>'+
+    '</div>';
+  }).join('');
+}
+
+function initChats(){
+  var chats = getChats();
+  if(chats.length > 0){
+    cargarChat(chats[0].id);
+  } else {
+    nuevoChat();
+  }
+}
+
 document.addEventListener("DOMContentLoaded",function(){
   // Home → Portal de Documentos
   document.getElementById("btn-goto-docs").addEventListener("click",goToDocs);
@@ -1883,6 +2065,7 @@ document.addEventListener("DOMContentLoaded",function(){
   initUpload();
   initIATextarea();
   actualizarProvInd();
+  initChats();
   document.getElementById("btn-goto-compraventa").addEventListener("click",goToCompraventa);
   document.getElementById("btn-cv-back").addEventListener("click",goHomeCv);
   document.getElementById("btn-cv-pdf").addEventListener("click",generarCompraventaPDF);
@@ -2324,6 +2507,22 @@ document.addEventListener("DOMContentLoaded",function(){
         </div>
       </div>
     </aside>
+
+    <!-- HISTORIAL DE CHATS -->
+    <div style="width:220px;min-width:220px;background:#f9f9f9;border-right:1px solid var(--border);
+                display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:'Montserrat',sans-serif;font-size:11px;font-weight:700;color:var(--text)">💬 Chats</span>
+        <button onclick="nuevoChat()" title="Nuevo chat"
+          style="width:26px;height:26px;border-radius:8px;background:var(--crimson);border:none;
+                 cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
+      </div>
+      <div id="chats-lista" style="flex:1;overflow-y:auto;padding:8px">
+        <!-- Chats se renderizan aquí -->
+      </div>
+    </div>
 
     <!-- CHAT -->
     <main style="flex:1;display:flex;flex-direction:column;background:var(--bg);min-width:0">
